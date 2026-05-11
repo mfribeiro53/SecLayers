@@ -1,0 +1,104 @@
+# Dependency Confusion
+
+Modern applications depend on hundreds of open-source packages. The build system that resolves those dependencies is itself an attack surface — and dependency confusion is one of the most elegant supply chain attacks ever documented.
+
+## How Package Resolution Works
+
+When you run `npm install` or `pip install`, the package manager queries one or more registries and selects a package version based on version constraints and registry priority. Most ecosystems prioritize the **highest available version number**, regardless of where it comes from.
+
+Enterprises frequently maintain **internal (private) registries** for proprietary packages: shared utility libraries, internal SDKs, business logic modules. These packages have names that make sense internally — `company-api-client`, `auth-helpers`, `internal-utils`.
+
+## The Attack: Dependency Confusion
+
+In 2021, security researcher Alex Birsan discovered that he could publish packages to public npm, PyPI, and RubyGems using the **same names as internal packages** discovered through leaked configuration files, error messages, or job listings.
+
+The attack flow:
+
+1. Attacker discovers internal package name (e.g., `acme-helpers`) via a public error log or `package.json` visible in a GitHub repo.
+2. Attacker publishes `acme-helpers` to npm with version `9.9.9` — much higher than the internal version `1.2.3`.
+3. When developers run `npm install`, npm queries both the internal registry and the public npm registry.
+4. npm selects `9.9.9` (public) over `1.2.3` (internal) because higher versions win.
+5. The attacker's package runs its `postinstall` script during the install — **on the developer's machine and in CI/CD**.
+
+Birsan reported this to over 30 companies and received **$130,000 in bug bounties** — from Apple, Microsoft, PayPal, Netflix, Uber, and others.
+
+<Callout variant="danger">
+**Impact at install time.** The attacker's code runs during `npm install`, `pip install`, or equivalent. This means developer laptops, CI/CD build servers, and any environment that installs dependencies is affected — before any tests run.
+</Callout>
+
+## Why It Works
+
+The core problem is that package managers were designed for a world with one public registry. The resolution algorithm — "highest version wins" — was never designed to handle a world with both public and private registries.
+
+npm's default resolution order is:
+1. Query all configured registries
+2. Merge the results
+3. Install the highest-available version that satisfies the declared constraint
+
+If `^1.0.0` is declared and the attacker publishes `99.0.0` publicly, the attacker wins.
+
+## Defenses
+
+<DepthBlock label="Mitigation 1: Scoped packages">
+**Use npm scopes**: `@acme/helpers` instead of `acme-helpers`. Scopes are tied to an organization account on the registry. An attacker cannot publish to `@acme/` without owning the `@acme` organization.
+
+```json
+{
+  "dependencies": {
+    "@acme/helpers": "^1.2.0"
+  }
+}
+```
+
+Configure npm to always resolve scoped packages from the internal registry:
+```
+@acme:registry=https://npm.internal.acme.com/
+```
+
+This prevents public npm from being queried for `@acme/*` packages at all.
+</DepthBlock>
+
+<DepthBlock label="Mitigation 2: Publish placeholder packages">
+Register your internal package names on the public registry with a high version number and a description that redirects to your internal registry. This "squats" the name before an attacker can use it. Many companies use automated tooling to keep these placeholders updated.
+</DepthBlock>
+
+<DepthBlock label="Mitigation 3: Lock dependency resolution">
+- Use lockfiles (`package-lock.json`, `yarn.lock`, `Pipfile.lock`) and commit them.
+- Configure your package manager to resolve packages **only** from the internal registry for internal package names.
+- npm: `npm config set registry https://npm.internal.acme.com/` with a proxy to public npm for external packages.
+</DepthBlock>
+
+<DepthBlock label="Mitigation 4: Verify package integrity">
+- npm automatically stores package integrity hashes in `package-lock.json`. Verify these hashes in CI.
+- Use `npm ci` (not `npm install`) in pipelines — it installs from lockfile without resolution, failing on any mismatch.
+- Audit `postinstall` scripts in dependencies: legitimate packages rarely need them.
+</DepthBlock>
+
+## Typosquatting: The Simpler Cousin
+
+Before dependency confusion, **typosquatting** was the dominant supply chain attack: publishing `reqeusts` (instead of `requests`), `lo-dash` (instead of `lodash`), or `colourama` (instead of `colorama`). Developers with a typo in their dependency declaration install the malicious package.
+
+Defense: lockfiles and SCA scanning catch known typosquats before they reach production.
+
+## Detecting Suspicious Packages
+
+Tools like `npm audit`, Snyk, Socket.dev, and GitHub Dependabot scan dependencies against databases of known malicious packages, high-risk indicators (new package, sudden high version, postinstall scripts), and CVEs.
+
+```bash
+# Audit existing dependencies
+npm audit
+
+# Check for packages with unusual install scripts
+npx can-i-ignore-scripts
+
+# Socket.dev: analyzes package behavior patterns
+npx socket npm ls
+```
+
+<Callout variant="insight">
+The dependency confusion attack succeeded because it required no technical exploit — just an understanding of how package resolution works. The best defenses are equally non-technical: scoped packages and lockfiles remove the ambiguity the attack depends on.
+</Callout>
+
+## Common Misconception
+
+**"Our internal packages are safe because they're not on npm."** The attack works *precisely because* the package is absent from the public registry — the attacker fills that gap. The name being absent from npm is the pre-condition for the attack, not protection against it.

@@ -1,0 +1,189 @@
+# Logging, Monitoring & Incident Response
+
+You cannot defend what you cannot see. Logging and monitoring are the foundation of detection — without them, attackers operate with impunity, often for months before discovery. The median time from initial breach to discovery remains over 200 days.
+
+<Callout kind="insight">
+**Security logging is not the same as application logging.** Application logs capture what the system did. Security logs capture who accessed what, when, from where, and whether the access was authorized. They exist primarily to answer the question: "What happened during the incident?" — often after the fact.
+</Callout>
+
+---
+
+## What to Log
+
+### Always Log
+
+| Event | Why |
+|---|---|
+| Authentication events (success + failure) | Detect brute force, credential stuffing, account takeover |
+| Authorization decisions (especially denials) | Detect privilege escalation, unauthorized access attempts |
+| Session creation and termination | Detect session hijacking, concurrent sessions from multiple IPs |
+| Data access (especially PII, sensitive records) | Compliance (GDPR, HIPAA), data exfiltration detection |
+| Configuration changes (admin actions) | Detect backdoor creation, privilege abuse |
+| Input validation failures | Detect scanning, probe attempts |
+| External API calls | Detect data exfiltration via third-party channels |
+
+### Never Log
+
+Logging sensitive values creates a second exposure vector — logs are often less protected than the systems they monitor:
+
+- Passwords (even hashed)
+- Authentication tokens (Bearer tokens, session cookies)
+- Full credit card numbers, CVVs
+- Social Security Numbers and government IDs
+- Encryption keys
+
+```python
+# Wrong: logs the full Authorization header
+logger.debug(f"Request headers: {request.headers}")
+
+# Right: scrub sensitive headers before logging
+safe_headers = {k: v for k, v in request.headers.items()
+                if k.lower() not in {"authorization", "cookie", "x-api-key"}}
+logger.debug(f"Request headers: {safe_headers}")
+```
+
+---
+
+## Log Injection
+
+Log injection exploits the practice of concatenating user input directly into log messages. An attacker can insert newlines to forge additional log entries, confuse SIEM parsers, or hide malicious activity.
+
+### The Vulnerability
+
+```python
+# Vulnerable: user input goes directly into log string
+username = request.form["username"]
+logger.info(f"Login attempt: {username}")
+
+# Attacker sends: username = "admin\n2024-01-15 INFO Login success: admin"
+# Resulting log:
+# 2024-01-15 INFO Login attempt: admin
+# 2024-01-15 INFO Login success: admin   ← forged entry
+```
+
+### Structured Logging as Defense
+
+Structured logs (JSON) treat all field values as data, not format strings. Newlines are escaped; there is no way to inject new log lines:
+
+```python
+import structlog
+log = structlog.get_logger()
+
+# Safe: username is a field value, not part of the format string
+log.info("login_attempt", username=username, ip=request.remote_addr)
+# Output: {"event": "login_attempt", "username": "admin\n2024...", "ip": "1.2.3.4"}
+# The newline is escaped — no injection
+```
+
+---
+
+## Centralized Logging Architecture
+
+Application logs are useless if scattered across hundreds of containers. Centralize them:
+
+```
+Applications → Log Agent (Fluentd/Vector) → Log Aggregator → SIEM
+                                              (Elasticsearch,   (Splunk, 
+                                               Loki, OpenSearch) Chronicle, Sentinel)
+```
+
+**Log tamper resistance**: Once logs are written, attackers who compromise the application should not be able to delete them. Use append-only log streams (Kinesis, Kafka) or ship logs to a separate account immediately on write.
+
+**Retention**: Security logs should be retained for at least 12 months (often 7 years for compliance). Hot storage (queryable) for 90 days, cold storage (S3 Glacier) thereafter.
+
+---
+
+## Cloud-Native Monitoring (AWS)
+
+| Service | What it does |
+|---|---|
+| **CloudTrail** | API call audit log for every AWS API call — who, what, when, from where |
+| **CloudWatch** | Metrics, logs, alarms for AWS services and applications |
+| **GuardDuty** | Threat detection — analyzes CloudTrail, VPC Flow Logs, DNS logs for malicious patterns |
+| **Security Hub** | Aggregates findings from GuardDuty, Config, Inspector into a single dashboard |
+| **Config** | Records configuration changes to AWS resources; evaluates compliance rules |
+
+Always enable GuardDuty in every account and region. It detects: cryptocurrency mining, reconnaissance API calls, unusual IAM activity, EC2 instances communicating with known C2 IPs, and more — all without requiring any log configuration.
+
+---
+
+## Detection Use Cases
+
+### Brute Force Detection
+
+```sql
+-- Alert when 10+ failed logins from the same IP in 5 minutes
+SELECT ip_address, COUNT(*) as failures
+FROM auth_events
+WHERE event_type = 'login_failure'
+  AND timestamp > NOW() - INTERVAL '5 minutes'
+GROUP BY ip_address
+HAVING COUNT(*) >= 10
+```
+
+### Impossible Travel
+
+An account logging in from New York and then from Tokyo 30 minutes later has either been compromised or is using a VPN. Detect with: user → timestamp → geolocation, alert when consecutive logins are physically impossible.
+
+### Privilege Escalation Pattern
+
+```
+Alert: any IAM principal calls iam:AttachRolePolicy,
+       iam:CreatePolicyVersion, or iam:PutRolePolicy
+       where they are not in the approved admin group
+```
+
+### Data Exfiltration Signal
+
+- Download volume anomalies: user downloads 100× their daily average
+- Unusual data destinations: queries to external IPs not seen before
+- After-hours access: sensitive data accessed at 3 AM on a Sunday
+
+---
+
+## Incident Response Lifecycle
+
+The NIST/SANS IR framework:
+
+```
+1. Preparation    → IR plan, runbooks, detection tooling, on-call rotation
+2. Detection      → Alert fires, analyst triages
+3. Containment    → Short-term (isolate affected systems) + long-term (remove attacker access)
+4. Eradication    → Remove malware, revoke compromised credentials, patch vulnerability
+5. Recovery       → Restore systems from clean backups, verify integrity
+6. Lessons Learned → Post-incident review, update detections and runbooks
+```
+
+### Containment Actions
+
+```bash
+# Isolate a compromised EC2 instance
+aws ec2 modify-instance-attribute \
+  --instance-id i-1234567890abcdef0 \
+  --groups sg-isolated  # security group with no ingress/egress
+
+# Revoke all active sessions for a compromised IAM user
+aws iam list-access-keys --user-name compromised-user
+aws iam update-access-key --access-key-id AKIAEXAMPLE --status Inactive --user-name compromised-user
+
+# Disable compromised service account in K8s
+kubectl delete serviceaccount compromised-sa -n production
+```
+
+### Evidence Preservation
+
+Before terminating or wiping a compromised system, preserve evidence:
+
+- Memory dump (if forensics is needed)
+- Disk snapshot (`aws ec2 create-snapshot`)
+- VPC Flow Logs export
+- Application logs export
+- Chain of custody documentation
+
+---
+
+## Misconception
+
+**Myth:** "We log everything — if there's ever a breach, we'll be able to reconstruct what happened."
+
+**Reality:** Logging everything creates noise, not signal. Logs without alerting rules don't detect attacks in progress — they only support forensics after the fact. And forensics only works if logs weren't deleted or modified by the attacker. Effective security monitoring requires: structured logs with consistent schemas, real-time alerting on high-signal patterns, log shipping to an append-only destination the attacker cannot reach, and regular alert tuning to reduce false positive fatigue.

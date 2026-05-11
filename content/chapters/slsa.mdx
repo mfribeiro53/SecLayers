@@ -1,0 +1,168 @@
+# Code Signing & SLSA
+
+When you download a binary or install a package, how do you know it came from who it claims to come from and hasn't been modified in transit? Code signing and supply chain integrity frameworks answer this question by creating a cryptographically verifiable chain of trust from source code to deployed artifact.
+
+## What Code Signing Provides
+
+Code signing attaches a cryptographic signature to a software artifact. The signature proves two things:
+1. **Authenticity**: the artifact was signed by the holder of a specific private key
+2. **Integrity**: the artifact hasn't been modified since it was signed
+
+What it does **not** prove: that the code is safe, correctly written, or free of vulnerabilities. It proves provenance — where the artifact came from.
+
+### Traditional Code Signing Problems
+
+Classic PKI-based code signing relies on certificate authorities and long-lived private keys:
+- Private keys must be stored securely (HSM, air-gapped systems)
+- If the key is compromised, all previously signed artifacts are also suspect
+- Certificate management is operationally complex
+- No standard way to link a signature back to the specific source commit and build that produced it
+
+The SolarWinds attack exploited this: the artifact was legitimately signed with SolarWinds' key, so signature verification passed — but the key's holder had been compromised.
+
+## Sigstore: Keyless Signing
+
+**Sigstore** is a Linux Foundation project that reimagines code signing to eliminate long-lived private key management:
+
+1. Developer authenticates with an OIDC provider (GitHub, Google, Microsoft)
+2. Sigstore's **Fulcio** CA issues a **short-lived certificate** (10 minutes) tied to the developer's identity (email/OIDC claim)
+3. The artifact is signed with the ephemeral key
+4. The signature and certificate are recorded in **Rekor**, a public, append-only transparency log
+5. The private key is discarded — it was only needed for seconds
+
+Verification works by checking that:
+- The signature is valid for the artifact's hash
+- The certificate was issued by Fulcio
+- The certificate and signature appear in Rekor (transparency)
+
+```bash
+# Sign a container image (keyless)
+cosign sign ghcr.io/acme/api@sha256:abc123...
+
+# Verify: checks Rekor + Fulcio
+cosign verify \
+  --certificate-identity-regexp="https://github.com/acme/api/.github/workflows/.*" \
+  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
+  ghcr.io/acme/api@sha256:abc123...
+```
+
+<Callout variant="insight">
+**Transparency logs solve the compromise detection problem.** Because every signature is recorded in a public append-only log, a compromised signing key cannot issue a signature without it appearing in Rekor — making unauthorized signings detectable after the fact.
+</Callout>
+
+## SLSA: Supply-chain Levels for Software Artifacts
+
+**SLSA** (pronounced "salsa") is a security framework from Google that defines graduated levels of supply chain integrity assurance. It answers: "How confident can we be that this artifact was built from this source using this process?"
+
+SLSA defines four levels:
+
+| Level | Requirements | What it prevents |
+|-------|-------------|-----------------|
+| SLSA 1 | Provenance exists (who built it, from what) | Accidents, basic auditability |
+| SLSA 2 | Signed provenance from a hosted CI service | Tampering after build, forged provenance |
+| SLSA 3 | Build on ephemeral, isolated environment; source version controlled | Compromised build server affecting other builds |
+| SLSA 4 | Reproducible build; hermetic; two-party review | Most sophisticated insider and supply chain attacks |
+
+Most organizations target **SLSA 2** for their critical services. SLSA 3 and 4 require significant build infrastructure investment.
+
+### SLSA Provenance Attestation
+
+A **provenance attestation** is a signed document that records:
+- The artifact's digest (sha256 hash)
+- The builder identity (e.g., `https://github.com/Attestations/GitHubHostedActions@v1`)
+- The source repository and commit SHA
+- The build trigger (push, PR merge, scheduled)
+- The build parameters and environment
+
+```json
+{
+  "_type": "https://in-toto.io/Statement/v0.1",
+  "subject": [{"name": "ghcr.io/acme/api", "digest": {"sha256": "abc123..."}}],
+  "predicateType": "https://slsa.dev/provenance/v0.2",
+  "predicate": {
+    "builder": {"id": "https://github.com/slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@refs/tags/v1.9.0"},
+    "buildType": "https://github.com/slsa-framework/slsa-github-generator/container@v1",
+    "invocation": {
+      "configSource": {
+        "uri": "git+https://github.com/acme/api@refs/heads/main",
+        "digest": {"sha1": "deadbeef..."},
+        "entryPoint": ".github/workflows/release.yml"
+      }
+    }
+  }
+}
+```
+
+This attestation is signed with Cosign and stored in the container registry alongside the image.
+
+## Enforcing Provenance at Deploy Time
+
+Knowing artifacts are signed is only useful if deployments are blocked when signatures are missing or invalid. Kubernetes admission controllers provide this enforcement:
+
+**Kyverno policy**:
+```yaml
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: verify-image-signature
+spec:
+  rules:
+  - name: verify-cosign-signature
+    match:
+      resources:
+        kinds: [Pod]
+    verifyImages:
+    - image: "ghcr.io/acme/*"
+      key: "https://github.com/acme/api/.github/workflows/release.yml@refs/heads/main"
+      attestations:
+      - predicateType: "https://slsa.dev/provenance/v0.2"
+        conditions:
+        - all:
+          - key: "{{ builder.id }}"
+            operator: Equals
+            value: "https://github.com/slsa-framework/slsa-github-generator/..."
+```
+
+Any Pod spec referencing an image under `ghcr.io/acme/*` that lacks a valid Cosign signature and SLSA provenance is rejected before it can be scheduled.
+
+<DepthBlock label="The full chain: source to deploy">
+
+A complete SLSA Level 2 chain:
+
+1. Developer pushes a signed commit to a protected branch
+2. GitHub Actions workflow runs on a hosted runner (isolated, ephemeral)
+3. Build produces a container image; workflow generates a signed provenance attestation
+4. Image pushed to registry by digest (not mutable tag)
+5. Provenance attestation stored in registry alongside image
+6. ArgoCD or kubectl apply triggers a pod update
+7. Kyverno intercepts the pod creation request
+8. Kyverno verifies the image signature and provenance attestation
+9. If valid: pod is scheduled. If invalid: pod is rejected, alert fires.
+
+An attacker who compromises a developer's laptop can push malicious code, but:
+- It must pass code review (2 approvers, signed commits)
+- It must pass CI (cannot bypass SAST/tests without modifying the workflow, which requires CODEOWNERS approval)
+- The resulting artifact won't have provenance signed by the official CI workflow
+- The unsigned artifact will be rejected by Kyverno at deploy time
+
+</DepthBlock>
+
+## npm Package Provenance
+
+Since 2023, npm supports provenance attestations for packages published from GitHub Actions:
+
+```yaml
+- name: Publish to npm
+  run: npm publish --provenance
+  env:
+    NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+```
+
+Published packages gain a "verified" badge on npmjs.com, and users can verify provenance:
+```bash
+npm audit signatures
+```
+
+## Common Misconception
+
+**"If our artifacts are signed, our supply chain is secure."** Signing proves the artifact came from your signing key — nothing more. If an attacker compromised your build server and injected malicious code before signing, the signature is valid but the artifact is malicious. SLSA addresses this by requiring provenance that cryptographically binds the artifact to a specific source commit and build environment, so substitution is detectable.

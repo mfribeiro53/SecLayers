@@ -1,0 +1,205 @@
+# Kubernetes RBAC
+
+Kubernetes Role-Based Access Control (RBAC) controls who can perform which actions on which resources within the cluster. Misconfigured RBAC is one of the most common paths to full cluster compromise — a single overly-permissive role can allow an attacker to read all secrets, exec into any pod, or create privileged workloads with host access.
+
+<Callout kind="warning">
+**RBAC is not enabled by default on older Kubernetes versions** and may be disabled on self-managed clusters. Always verify RBAC is enabled and that `--authorization-mode` includes `RBAC`.
+</Callout>
+
+---
+
+## RBAC Building Blocks
+
+### Subjects, Verbs, and Resources
+
+```
+Subject        Verb        Resource
+(who)          (what)      (on what)
+────────────────────────────────────────
+ServiceAccount get         pods
+User           list        secrets
+Group          create      deployments
+               delete      nodes
+               exec        pods/exec
+```
+
+### Roles vs ClusterRoles
+
+| Type | Scope |
+|---|---|
+| `Role` | Single namespace |
+| `ClusterRole` | All namespaces (cluster-wide) |
+| `RoleBinding` | Grants a Role or ClusterRole within one namespace |
+| `ClusterRoleBinding` | Grants a ClusterRole cluster-wide |
+
+A `ClusterRoleBinding` that binds `cluster-admin` to a service account gives that account root access to every resource in the entire cluster.
+
+### Minimal RBAC Example
+
+```yaml
+# Role: only read pods in the monitoring namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: monitoring
+  name: pod-reader
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  namespace: monitoring
+  name: metrics-collector-binding
+subjects:
+- kind: ServiceAccount
+  name: metrics-collector
+  namespace: monitoring
+roleRef:
+  kind: Role
+  name: pod-reader
+  apiGroup: rbac.authorization.k8s.io
+```
+
+---
+
+## Dangerous Permissions
+
+Not all RBAC verbs are equal. Some combinations enable privilege escalation even without any direct vulnerability:
+
+### Wildcard Permissions
+
+```yaml
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+```
+
+This is cluster-admin by another name. An attacker with this can: list all secrets in every namespace (including `kube-system`), create privileged pods with host mounts, modify RBAC to grant themselves additional bindings, and delete critical workloads.
+
+### `pods/exec`
+
+```yaml
+resources: ["pods/exec"]
+verbs: ["create"]
+```
+
+`kubectl exec` tunnels through the API server into a running container's process namespace. If the container runs as root or has dangerous mounts, this is effectively a root shell. Even a non-root container with `exec` access can be used to access the service account token, call cloud metadata endpoints, or pivot to other services.
+
+### Secrets Read
+
+```yaml
+resources: ["secrets"]
+verbs: ["get", "list"]
+```
+
+Kubernetes Secrets store: service account JWT tokens (used to call the K8s API), database passwords, TLS private keys, third-party API keys. A service account that can list secrets in `kube-system` has credentials for every other service in the cluster.
+
+### Escalation via `bind` and `escalate` Verbs
+
+```yaml
+resources: ["clusterroles", "clusterrolebindings"]
+verbs: ["create", "bind", "escalate"]
+```
+
+`bind` lets a user create bindings to roles they don't themselves have. `escalate` lets a user grant roles with more permissions than they have. Both allow privilege escalation by creating a new binding that attaches `cluster-admin` to a controlled service account.
+
+---
+
+## Service Account Token Exposure
+
+Every pod is automatically mounted with a service account token unless disabled. The token is a JWT signed by the cluster, granting API access as that service account.
+
+```bash
+# From inside any pod (unless automountServiceAccountToken: false):
+ls /var/run/secrets/kubernetes.io/serviceaccount/
+# token  namespace  ca.crt
+
+# Use the token to call the API:
+TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+curl -k -H "Authorization: Bearer $TOKEN" \
+  https://kubernetes.default.svc/api/v1/namespaces/kube-system/secrets
+```
+
+If the default service account in `kube-system` has any significant permissions, an attacker with RCE in *any* pod in that namespace gains those permissions.
+
+**Always disable auto-mounting for pods that don't need API access:**
+
+```yaml
+spec:
+  automountServiceAccountToken: false
+```
+
+---
+
+## Privilege Escalation Paths
+
+### Create Pod with Host Filesystem
+
+```yaml
+# If the attacker can create pods, they can mount the host root:
+spec:
+  volumes:
+  - name: host-root
+    hostPath:
+      path: /
+  containers:
+  - name: attacker
+    image: alpine
+    volumeMounts:
+    - name: host-root
+      mountPath: /host
+    command: ["chroot", "/host", "/bin/bash"]
+```
+
+This gives root on the node without any kernel exploit.
+
+### Create Pod in Host Network + PID Namespace
+
+```yaml
+spec:
+  hostNetwork: true  # access host network interfaces
+  hostPID: true      # see all host processes
+```
+
+Combined, this allows sniffing host traffic, injecting into other processes, and accessing internal services bound to localhost on the node.
+
+---
+
+## Auditing and Admission Control
+
+**`kubectl auth can-i`**: Check what a service account can do.
+
+```bash
+kubectl auth can-i list secrets \
+  --as system:serviceaccount:default:my-sa \
+  -n kube-system
+```
+
+**Admission controllers** enforce policies before resources are created:
+
+- **OPA/Gatekeeper**: Policy-as-code via Rego. Can reject pods running as root, with hostPath mounts, or using privileged mode.
+- **Kyverno**: K8s-native policy engine. Simpler YAML-based rules.
+- **Pod Security Standards (PSS)**: Built-in K8s admission levels: `privileged`, `baseline`, `restricted`. Label namespaces to enforce the appropriate level.
+
+```yaml
+# Enforce restricted PSS for a namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+```
+
+---
+
+## Misconception
+
+**Myth:** "Service accounts are just for CI/CD pipelines — regular application pods don't need to worry about RBAC."
+
+**Reality:** Every pod has a service account, and that service account has a token mounted by default. If the pod is compromised (via RCE, supply chain, or container escape), the attacker immediately has that service account's API permissions. Applications should use dedicated service accounts with minimal RBAC, and disable token auto-mounting unless the application explicitly calls the K8s API.

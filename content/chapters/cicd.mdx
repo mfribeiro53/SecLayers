@@ -1,0 +1,141 @@
+# CI/CD Pipeline Security
+
+The CI/CD pipeline is the most powerful system in a modern engineering organization. It has access to source code, production credentials, cloud APIs, and artifact repositories. Compromising it is equivalent to compromising every service it deploys — which is why it has become the highest-value target in supply chain attacks.
+
+## Why CI/CD Is a Prime Target
+
+A typical pipeline, if fully compromised, can:
+- Read all repository source code
+- Exfiltrate all CI/CD secret variables (cloud keys, API tokens, signing certificates)
+- Modify build artifacts before they reach production
+- Deploy arbitrary code to every production environment
+- Pivot into the cloud via over-privileged deployment credentials
+
+The SolarWinds attack (2020) is the canonical example: attackers compromised the build server, injected malicious code into the Orion build process, and distributed a backdoored software update to 18,000 customers. The backdoor was signed with SolarWinds' own certificate.
+
+## Pipeline Architecture and Attack Surface
+
+A standard CI/CD pipeline has five stages, each with distinct attack vectors:
+
+**Source → Build → Test → Artifacts → Deploy**
+
+### Source Stage
+
+Branch protection is the first line of defense:
+- **Require pull request reviews**: minimum 2 approvers for protected branches
+- **Dismiss stale approvals**: a new commit resets the approval count
+- **Require signed commits**: `git commit -S` with GPG; branch protection enforces this
+- **CODEOWNERS**: requires review from specific teams for sensitive paths (`.github/workflows/`, `Dockerfile`, `terraform/`)
+
+<Callout variant="danger">
+**Workflow files are code.** A PR that modifies `.github/workflows/` can exfiltrate all secrets accessible to the workflow. CODEOWNERS should require security team approval for any workflow changes.
+</Callout>
+
+### Build Stage
+
+**Dependency integrity**: Use lockfiles (`package-lock.json`, `yarn.lock`) and `npm ci` — never `npm install` — in CI. `npm ci` installs from the lockfile exactly, failing if the lockfile doesn't match `package.json`.
+
+**Base image pinning**: Docker's mutable tags are a supply chain risk. `FROM node:18` can change what it resolves to between builds. Pin by digest:
+```dockerfile
+FROM node:18-alpine@sha256:a9fcfca7bdb188af3f258ab0e70f1fd09e576f70d8c76a96ab5c29a48ef14c6b
+```
+
+**Build isolation**: Each build should run in a fresh, ephemeral runner. Shared build servers accumulate state — a compromised earlier build can poison later builds via the filesystem, npm cache, or Docker layer cache.
+
+### Secrets Management in CI/CD
+
+Secrets in CI/CD fall into two categories:
+
+| Type | Risk | Better approach |
+|------|------|-----------------|
+| Static long-lived keys | High — leak lasts forever | OIDC federation (no stored key) |
+| Short-lived tokens (OIDC) | Low — expires after minutes | Default for GitHub/GitLab → AWS/GCP/Azure |
+| Environment variables | Medium — visible in logs | Secret masking + external secrets store |
+
+**OIDC Federation** eliminates the need to store cloud credentials in CI entirely:
+```yaml
+# GitHub Actions → AWS OIDC
+- name: Configure AWS credentials
+  uses: aws-actions/configure-aws-credentials@v4
+  with:
+    role-to-assume: arn:aws:iam::123456789012:role/GitHubActionsRole
+    aws-region: us-east-1
+# No AWS_ACCESS_KEY_ID or AWS_SECRET_ACCESS_KEY stored anywhere
+```
+
+GitHub generates a signed JWT for the workflow run. AWS validates the JWT against GitHub's OIDC endpoint and assumes the role. The credential is valid for the duration of the job, then expires.
+
+<DepthBlock label="Overprivileged deployment credentials">
+The most common CI/CD security mistake: the deployment role has `AdministratorAccess` or `cluster-admin` because "it's easier." If the pipeline is compromised, the attacker has full cloud access.
+
+Minimum required permissions for a typical deployment:
+- ECR: `ecr:GetAuthorizationToken`, `ecr:PutImage`
+- ECS: `ecs:UpdateService` scoped to the specific service ARN
+- K8s: `update` on `deployments` in the target namespace only
+
+```hcl
+resource "aws_iam_role_policy" "cicd_deploy" {
+  policy = jsonencode({
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ecs:UpdateService", "ecr:PutImage"]
+      Resource = [
+        "arn:aws:ecs:us-east-1:123:service/prod/api",
+        "arn:aws:ecr:us-east-1:123:repository/api"
+      ]
+    }]
+  })
+}
+```
+</DepthBlock>
+
+### Artifact Integrity
+
+Once built, artifacts must be signed before distribution:
+
+```bash
+# Sign a container image with Cosign
+cosign sign --key cosign.key ghcr.io/acme/api:v1.2.3
+
+# Verify before deployment
+cosign verify --key cosign.pub ghcr.io/acme/api:v1.2.3
+```
+
+**SLSA (Supply-chain Levels for Software Artifacts)** defines four levels of provenance requirements:
+- **Level 1**: Provenance exists (build script exists)
+- **Level 2**: Signed provenance (CI system signs the attestation)
+- **Level 3**: Hardened build (isolated, ephemeral, verified source)
+- **Level 4**: Reproducible, hermetic build (rare, highest assurance)
+
+Most organizations target **SLSA Level 2**: provenance generated and signed by the CI system, stored alongside the artifact.
+
+### Deploy Stage
+
+**Separation of duties**: The pipeline should not have permission to approve its own deployments to production. Production deploys require a human approval step:
+
+```yaml
+jobs:
+  deploy-prod:
+    environment: production    # GitHub environment with required reviewers
+    steps:
+      - run: kubectl set image deployment/api api=$IMAGE
+```
+
+**Deployment via GitOps** (ArgoCD, Flux) moves credentials out of CI entirely: the CI pipeline pushes a new image tag to a git repo; the GitOps agent (running inside the cluster) pulls and applies the change. CI never has `kubectl` access.
+
+## Detecting Pipeline Compromise
+
+Signs a pipeline has been tampered with:
+- Unexpected outbound network connections from build jobs
+- New packages added to lockfiles without corresponding PR changes
+- Signed artifact hash doesn't match what CI reported building
+- Workflow run time significantly longer than baseline (exfiltration)
+- Secrets accessed by workflows that don't need them
+
+<Callout variant="insight">
+**Treat the pipeline as production infrastructure.** Apply the same access controls, audit logging, and change management to your CI/CD configuration that you apply to production systems. Pipeline configuration files are infrastructure — they deserve security review.
+</Callout>
+
+## Common Misconception
+
+**"CI/CD secrets are safe because they're masked in logs."** Log masking prevents the literal secret value from appearing in log output — but a compromised workflow step can exfiltrate secrets out-of-band (HTTP request to attacker-controlled server, encoded in DNS queries) and the masking never fires. Secrets must be stored correctly (OIDC, secrets manager), not just masked.

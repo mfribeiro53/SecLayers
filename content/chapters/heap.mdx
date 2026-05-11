@@ -1,0 +1,160 @@
+# Use-After-Free & Heap Exploitation
+
+The heap is the dynamic memory region managed by an allocator (typically `malloc`/`free`). Use-after-free (UAF) bugs occur when a program continues to use a pointer after the memory it pointed to has been freed. Heap exploitation is more complex than stack exploitation — the attacker must reason about allocator internals, object lifetimes, and program structure — but it is among the most exploited vulnerability classes in browsers, kernels, and media parsers.
+
+<Callout kind="insight">
+**A freed pointer doesn't become NULL — it still holds the old address.** Unless the code explicitly zeroes it, all existing references to that memory remain valid-looking pointers that the compiler and runtime have no mechanism to invalidate. This is the dangling pointer problem, and C/C++ have no built-in solution for it.
+</Callout>
+
+---
+
+## The Heap Allocator's View
+
+`malloc` manages a pool of pages obtained from the OS. It tracks free and in-use regions using metadata stored adjacent to allocations. In glibc's ptmalloc2, each chunk has a header:
+
+```
+chunk:
+┌─────────────────────────────────────────┐
+│  prev_size (8 bytes, if prev chunk free)│
+│  size      (8 bytes, includes flags)    │
+├─────────────────────────────────────────┤  ← pointer returned to user
+│  user data (size - overhead bytes)      │
+└─────────────────────────────────────────┘
+```
+
+When a chunk is freed, it is placed on a **free list** (or bin). In ptmalloc2, small chunks go into **fastbins** (singly-linked, no integrity checks) or **smallbins** / **unsorted bins** (doubly-linked, with `fd`/`bk` pointers stored in the user data region). The key consequence: **free chunk metadata lives where user data used to be** — making it attackable.
+
+---
+
+## Use-After-Free: The Core Bug
+
+```c
+struct Connection {
+    char name[32];
+    void (*on_close)(struct Connection *);
+};
+
+struct Connection *conn = malloc(sizeof(*conn));
+conn->on_close = cleanup;
+
+// ... later ...
+
+free(conn);           // freed — returned to allocator
+// ...
+conn->on_close(conn); // UAF: conn still used, memory may be reallocated
+```
+
+If, between the `free` and the use, the allocator fulfils another `malloc` request with the same chunk, the `conn` pointer now aliases an entirely different object. An attacker who controls the intervening allocation controls what `conn->on_close` points to.
+
+---
+
+## Heap Grooming (Heap Feng Shui)
+
+The attacker needs the freed chunk to be reallocated with their data before the dangling pointer is used. **Heap grooming** is the art of manipulating the allocator's state to achieve predictable layout.
+
+Techniques:
+1. **Allocation spray**: Allocate many objects of the target size to fill any existing free chunks, forcing subsequent allocations to come from fresh pages in a predictable position.
+2. **Hole creation**: Allocate a sequence of objects, free specific ones to create holes of the target size, then trigger the vulnerable free — the hole is the next allocation site.
+3. **Size class control**: Allocators use size classes (bins). Allocating an object of exactly the same size as the freed object ensures the allocator reuses the exact chunk.
+
+---
+
+## Type Confusion
+
+A close relative of UAF: the pointer is not freed, but it's cast to a different type. If two objects share a size class:
+
+```cpp
+class Animal { virtual void speak(); int age; };
+class Car    { virtual void drive(); float speed; };
+
+Animal *a = new Animal();
+Car *c = reinterpret_cast<Car *>(a);  // type confusion
+c->drive();  // calls a->vtable->drive → garbage pointer
+```
+
+In practice, type confusion exploits in browsers involve carefully crafted DOM operations that cause the JS engine to re-classify an object while a reference still exists to the old type interpretation. The vtable pointer in the object header is what the attacker ultimately tampers with.
+
+---
+
+## Heap Overflow: Writing Past an Allocation
+
+A heap overflow overwrites the next chunk's header or data:
+
+```c
+char *a = malloc(32);
+char *b = malloc(32);   // b immediately follows a
+memcpy(a, user_input, 64);  // 64 bytes into 32-byte chunk — overflows into b
+```
+
+**Targets:**
+- **Chunk header of b**: If the attacker tampers with b's size field, the next `free(b)` will consolidate a falsely large region, overlapping live allocations.
+- **Object data of b**: If `b` is a C++ object with a vtable pointer at offset 0, the overflow replaces the vtable pointer with an attacker-controlled address.
+- **Free list pointers**: If `b` was freed, its user data contains `fd`/`bk` free list pointers. Overwriting them corrupts the free list, leading to the unlink attack.
+
+---
+
+## The Unlink Attack
+
+When ptmalloc unlinks a free chunk from its doubly-linked list during coalescing:
+
+```c
+// Simplified unlink macro
+#define unlink(P, BK, FD) {          \
+    FD = P->fd;                      \
+    BK = P->bk;                      \
+    FD->bk = BK;  // write BK to (FD + offsetof(bk)) \
+    BK->fd = FD;  // write FD to (BK + offsetof(fd)) \
+}
+```
+
+If an attacker controls `P->fd` and `P->bk`, they get two arbitrary writes: write `BK` to `FD+offset` and write `FD` to `BK+offset`. In classic glibc (pre-2.3), this gave a clean arbitrary write. Modern glibc adds safe-unlinking checks (`FD->bk == P && BK->fd == P`) — bypassing them requires leaking heap addresses to create consistent fake chunks.
+
+---
+
+## tcache: The Fast Path (and Attack Surface)
+
+glibc 2.26 introduced **tcache** — a per-thread cache of recently freed chunks stored as a singly-linked list with essentially no integrity checking (pre-2.29). A freed pointer's `next` field stores the address of the next free chunk of the same size.
+
+**tcache poisoning**: Overwrite the `next` pointer of a freed tcache chunk with an arbitrary address. The next two `malloc(size)` calls return: first the real chunk, then the arbitrary address. The program receives a pointer to anywhere in memory as if it were a valid allocation.
+
+```
+After free:
+tcache bin[size]:  chunk_A → chunk_B → NULL
+
+After heap overflow sets chunk_A->next = &__free_hook:
+tcache bin[size]:  chunk_A → __free_hook
+
+malloc(size) → chunk_A (legitimate)
+malloc(size) → &__free_hook  ← attacker writes their function pointer here
+```
+
+glibc 2.32 introduced tcache safe-linking (XOR pointer mangling) to mitigate this — but it requires a heap leak to bypass rather than being unbreakable.
+
+---
+
+## Detection and Prevention
+
+### Dynamic Analysis
+- **AddressSanitizer (ASAN)**: Quarantines freed memory, detects UAF and heap overflow on access. ~2× overhead. Near-zero false positives.
+- **Valgrind Memcheck**: Tracks every allocation and access. ~20× overhead. Ideal for test suites.
+- **libFuzzer + ASAN**: Finds UAF through input mutation and detects via the sanitizer — the standard approach for complex parsers.
+
+### Static Analysis
+- **Clang Static Analyzer / CodeQL**: Track object lifetimes across call graphs. Effective at finding simple UAF patterns; misses complex inter-procedural cases.
+- **Coverity**: Commercial; tracks ownership and lifetime annotations.
+
+### Language-Level Solutions
+- **Rust ownership system**: The borrow checker makes UAF **a compile-time error**. A Rust program with UAF cannot be compiled. This is the only approach that eliminates the class rather than detecting instances.
+- **C++ smart pointers**: `std::unique_ptr`, `std::shared_ptr`, and `std::weak_ptr` express ownership in the type system. A `weak_ptr` that has expired returns `nullptr` on `.lock()`. They do not eliminate UAF from code that mixes raw pointers, but reduce it.
+
+### Allocator Hardening
+- **jemalloc / mimalloc**: Designed with security in mind; separate metadata from user data, reducing the impact of heap overflows on allocator structures.
+- **PartitionAlloc (Chrome)**: Partitions heap by object type — a UAF in a type-confused object can only reuse memory from the same partition, not from arbitrary types.
+
+---
+
+## Misconception
+
+**Myth:** "Use-after-free bugs only cause crashes — they're a stability issue, not a security issue."
+
+**Reality:** A crash is what happens when the dangling pointer is dereferenced and the memory has been unmapped or filled with arbitrary data. In an exploit context, the attacker prevents the crash by controlling the reallocated memory — placing data there that makes the program behave in attacker-desired ways rather than faulting. UAF in browsers and operating systems kernels is the dominant vector for sandbox escapes and privilege escalation. Chrome's 2023 zero-day CVEs were predominantly UAF bugs. Crashes are the uncontrolled case; a skilled attacker makes it not crash.

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "mit-junior-01",
+    "question": "What is ASLR and what does it protect against?",
+    "answer": "ASLR (Address Space Layout Randomisation) is an OS-level mitigation that randomises the base addresses of the stack, heap, and loaded libraries every time a process starts. It protects against exploitation techniques that require knowing the address of specific code or data — for example, ret2libc attacks need to know the address of system() in libc, and ROP chains need to know gadget addresses. With ASLR, those addresses change every run, making hardcoded address payloads fail. For ASLR to also randomise the program's own code, the binary must be compiled as a position-independent executable (PIE) with -fPIE -pie.",
+    "category": "junior"
+  },
+  {
+    "id": "mit-junior-02",
+    "question": "What is the NX bit (DEP), and what attack technique did it give rise to?",
+    "answer": "The NX (Non-eXecutable) bit is a hardware page table flag that prevents the CPU from executing instructions from pages marked as data. When the OS sets NX on stack and heap pages, any shellcode pushed onto those pages cannot execute — the CPU raises an exception instead. This rendered the classic technique of injecting shellcode into stack buffers obsolete on systems with NX enabled. In response, attackers developed return-to-libc (reusing existing library code) and Return-Oriented Programming (ROP — chaining gadgets from existing executable code), both of which avoid injecting any new code and therefore are not blocked by NX.",
+    "category": "junior"
+  },
+  {
+    "id": "mit-mid-01",
+    "question": "Explain how a stack canary works and describe two techniques for bypassing it.",
+    "answer": "How it works: At function entry, the compiler inserts a random secret value (canary) between local variables and the saved return address. Before executing RET, it re-reads the canary and compares it with the stored original. If they differ (because a buffer overflow corrupted it), the process terminates. On Linux x86-64, the canary is stored in the thread-local storage at fs:0x28; the low byte is always 0x00 to stop string copies.\n\nBypass 1 — Info-leak: A format string bug or OOB read can leak the canary value from the stack. The attacker includes the leaked value in their overflow payload, so the canary check passes.\n\nBypass 2 — Non-linear write: A format string's %n or a UAF write can write directly to the return address at an arbitrary memory location. The attacker never touches the canary bytes — a linear overflow isn't needed. The canary check is irrelevant if the return address is overwritten non-linearly.",
+    "category": "mid"
+  },
+  {
+    "id": "mit-mid-02",
+    "question": "What is Full RELRO and why does it matter for security?",
+    "answer": "RELRO (Relocation Read-Only) controls the writability of the Global Offset Table (GOT) after process startup. The GOT is used for dynamic linking — it maps function names to resolved library addresses. It is a historically attractive attack target because overwriting a GOT entry redirects the next call to that library function.\n\nPartial RELRO (default): Makes some sections read-only, but leaves the GOT writable (lazy binding — entries are filled on first call).\n\nFull RELRO (-Wl,-z,relro,-z,now): Forces all dynamic symbols to be resolved at startup, then marks the entire GOT read-only. After startup, any write to a GOT entry causes an immediate page fault.\n\nWhy it matters: It eliminates GOT overwrite as an exploitation technique. Attackers must find other writable targets (e.g., __malloc_hook in libc data, stack-based function pointers, or objects in the heap). Combined with PIE + ASLR, those targets require an address leak to locate.",
+    "category": "mid"
+  },
+  {
+    "id": "mit-senior-01",
+    "question": "Intel CET provides both IBT (Indirect Branch Tracking) and a shadow stack. What distinct attack classes does each address?",
+    "answer": "IBT (Indirect Branch Tracking) — Forward-edge CFI: The hardware requires that any target of an indirect CALL or JMP instruction start with a special ENDBR64 instruction (a NOP on non-CET hardware). If an indirect branch lands on any other instruction, the CPU raises a control protection fault. This prevents ROP gadgets that start mid-instruction and vtable corruption that redirects virtual calls to arbitrary code — gadgets and injected code don't begin with ENDBR64. Attackers must now land on legitimate function entry points, dramatically reducing the usable gadget set.\n\nShadow Stack — Backward-edge CFI: A second, hardware-protected stack stores only return addresses. It is mapped with a special memory attribute that only the CALL/RET microcode can write to — normal load/store instructions fault when targeting shadow stack pages. On RET, the hardware compares the return address on the regular stack with the shadow stack; any mismatch raises a fault. This directly defeats all return address overwrite techniques, including stack overflow, stack pivoting, and any scheme that puts a different value on the regular stack than what CALL pushed on the shadow stack.\n\nThe two halves are complementary: shadow stack protects RET-based return hijacking; IBT protects indirect call/jump hijacking (vtables, function pointers, GOT). Together they make classic ROP and vtable-based exploitation structurally infeasible on CET-enabled systems without finding a CET-unaware code path or a kernel-level bypass.",
+    "category": "senior"
+  },
+  {
+    "id": "mit-senior-02",
+    "question": "A binary has all modern mitigations: PIE, full RELRO, stack canary, NX, CET. Describe a realistic exploitation strategy if a heap UAF bug is present.",
+    "answer": "With CET and shadow stack, return-address overwrites and ROP are blocked. Vtable corruption via IBT blocks naked indirect calls. The attack must find a path that doesn't go through RET or unguarded indirect calls.\n\nStrategy:\n\n1. UAF → arbitrary allocation: Use tcache poisoning or heap grooming to convert the UAF into an arbitrary allocation primitive — get malloc() to return a pointer to an attacker-chosen address.\n\n2. Target FSOP (File Stream Oriented Programming): Overwrite fields of a FILE structure (e.g., the vtable pointer at _IO_buf_base/_IO_wide_data). The _IO_wfile_jumps vtable is not IBT-protected on older glibc. Modern glibc uses stricter FSOP mitigations (glibc 2.35+ validates vtable pointers against a known set), but this is an active research area.\n\n3. JIT context: If the target is a JIT-compiled runtime (browser, Node.js), corrupt the JIT code buffer or a JIT object before execution. JIT-compiled code may not have ENDBR64 headers on all gadgets, and the JIT-permission toggle (mprotect window) may be exploitable.\n\n4. Signal handler hijack: Some runtimes store signal handler function pointers in writable memory outside the GOT. These are called via indirect call but may not be IBT-validated.\n\n5. Kernel syscall path: Exploit a privilege escalation via kernel UAF (bypasses all userland mitigations). This requires a kernel-level vulnerability — raising the bar to needing a second exploit.\n\nThe honest answer: fully mitigated modern systems require multi-bug chains, significant research into specific allocator and library internals, and often target JIT compilers or kernel paths. This is why well-funded exploit developers work in weeks-to-months timeframes on hardened targets.",
+    "category": "senior"
+  }
+]

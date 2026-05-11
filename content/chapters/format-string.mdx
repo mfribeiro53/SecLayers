@@ -1,0 +1,160 @@
+# Format String Bugs
+
+Format string vulnerabilities arise when user-controlled data is passed directly as the format string argument to a printf-family function. What looks like a display bug is actually a powerful exploit primitive: the attacker can read arbitrary memory, write arbitrary values to arbitrary addresses, and — on 32-bit systems — do so without any overflow at all.
+
+<Callout kind="danger">
+**The single character that makes a format string bug exploitable is `%`.** If a format string contains `%n`, `printf` writes the number of characters output so far to a pointer supplied as an argument. An attacker who controls the format string controls both the value written and where it is written.
+</Callout>
+
+---
+
+## How printf Works
+
+`printf(format, arg1, arg2, ...)` interprets the format string and substitutes conversion specifiers. For each `%d`, `%s`, `%x`, etc., it pulls the next argument from the argument list. On x86-64, the first six arguments come from registers (RDI for the format string, then RSI, RDX, RCX, R8, R9), and any overflow goes onto the stack.
+
+When user input becomes the format string:
+
+```c
+// Vulnerable
+char buf[512];
+read(STDIN_FILENO, buf, sizeof(buf));
+printf(buf);        // BUG: buf is the format string, not an argument
+
+// Safe
+printf("%s", buf);  // buf is an argument — no format parsing of buf's content
+```
+
+If the attacker sends `%x.%x.%x.%x`, `printf` treats the next four values on the stack (or in registers) as integers and prints them in hex — **leaking stack contents without any overflow.**
+
+---
+
+## Read Primitive: Leaking Memory
+
+### Stack Content
+
+```
+Input: %08x.%08x.%08x.%08x.%08x.%08x.%08x.%08x
+```
+
+Each `%x` consumes a "pseudo-argument" — values that printf reads as if they were arguments, walking up the stack frame. The attacker iterates through these to map the stack: find canary values, return addresses, heap pointers, and libc addresses.
+
+### Direct Parameter Access
+
+Most printf implementations support the `n$` positional specifier, letting you reference argument position directly:
+
+```
+%7$x   → reads the 7th "argument" (a specific stack slot)
+%7$s   → interprets that stack slot as a pointer and prints the string it points to
+```
+
+This makes memory reading surgical: find the offset of a useful pointer on the stack, then read it with `%N$s`.
+
+### Arbitrary Address Read
+
+If the attacker can place an address on the stack (e.g., by including it at the start of their input, which ends up in the stack frame via the format string buffer), they can then use `%N$s` to dereference it:
+
+```
+[address to read][padding][%7$s]
+                          ↑ argument 7 is the address at start of buf
+```
+
+`printf` reads a string starting at that address — **arbitrary memory read.**
+
+---
+
+## Write Primitive: `%n`
+
+`%n` is the dangerous specifier. It writes the number of characters printed so far to the address provided as the next argument.
+
+```c
+int written;
+printf("AAAA%n", &written);  // written == 4
+```
+
+An attacker who controls the format string uses `%n` to write to an attacker-chosen address. Combining with a large output (`%1000d`) lets them write a chosen 4-byte integer.
+
+### Controlling the Written Value
+
+To write the value `0x0804a000` (an address):
+
+1. Use padding specifiers to make printf emit exactly that many characters: `%134520832d%n` (134520832 = 0x0804a000 in decimal).
+2. Use `%hn` (write 2 bytes) and `%hhn` (write 1 byte) to write in smaller pieces, avoiding impractically long output.
+
+```
+Write 0xdeadbeef to address 0xbffff000:
+  - Write 0xbeef (48879) bytes with %hn to 0xbffff000
+  - Write 0xdead (57005) bytes with %hn to 0xbffff002
+```
+
+### Common Write Targets
+
+| Target | Effect |
+|---|---|
+| GOT entry for a frequently called function | Redirect future calls to shellcode/one-gadget |
+| `__malloc_hook` / `__free_hook` | Called by malloc/free — trivially achieves code exec |
+| Stack-stored return address | Direct control of RIP |
+| `dtors` / `.fini_array` | Called at process exit |
+
+---
+
+## Why This Works Without an Overflow
+
+The critical insight: printf reads its pseudo-arguments by incrementing an internal pointer up the stack. **No write to the buffer happened** — the format string is read-only. This means:
+
+- Stack canaries are irrelevant — no stack bytes were overwritten during the read phase
+- Arbitrary writes via `%n` go directly to a specified address — bypassing any linear overflow protection
+- The vulnerability requires only that a format string function was called with attacker-controlled input
+
+Format string bugs and buffer overflows are complementary: overflows give a write primitive and may need format strings to leak canaries; format strings give reads and arbitrary writes without any overflow needed.
+
+---
+
+## Detecting Format String Bugs
+
+**Manual code review — look for:**
+
+```c
+printf(user_input);          // direct pass
+fprintf(stderr, user_input); // same with different FILE
+syslog(LOG_ERR, user_input); // syslog is printf-family
+sprintf(dst, user_input);    // write to dst with user format
+```
+
+**Automated tools:**
+
+- `gcc -Wformat -Wformat-security` — warns when a non-literal format string is used
+- **Semgrep rule `c.lang.security.printf-user-controlled`** — flags printf with non-literal format
+- **ASAN + fuzzing** — a `%n` to an invalid address will crash immediately
+- `grep -n 'printf\s*(' *.c | grep -v '"'` — quick dirty scan for non-literal format calls
+
+---
+
+## Modern Mitigations
+
+| Mitigation | Effect |
+|---|---|
+| FORTIFY_SOURCE | Detects non-literal format strings at runtime, aborts |
+| Full RELRO | GOT is read-only after startup — GOT overwrites require mapping new writable pages |
+| PIE + ASLR | Randomises code and library addresses — need a leak to compute target addresses |
+| Sandboxing (seccomp) | Even with arbitrary write, syscall access is restricted |
+| Removing `%n` support | Some C libraries (e.g., Windows CRT) disable `%n` by default |
+
+FORTIFY_SOURCE (`-D_FORTIFY_SOURCE=2`) is the most directly relevant: it replaces `printf` with a hardened version that checks whether the format string is in a read-only section. If not (i.e., it's a variable), it aborts. This catches the vulnerability at the `printf` call itself.
+
+---
+
+## Real-World Examples
+
+**ProFTPD (CVE-2010-4221)** — a format string in the TELNET IAC handler allowed unauthenticated remote code execution on FTP servers.
+
+**wu-ftpd (CVE-2000-0573)** — the first widely publicised format string exploit. A `%n` in the site exec handler gave remote root. This vulnerability class was essentially unknown before this case.
+
+**glibc syslog** — syslog is a printf-family function. Applications that log user-supplied strings with `syslog(LOG_ERR, user_string)` instead of `syslog(LOG_ERR, "%s", user_string)` expose a format string bug in logging code, which developers rarely audit.
+
+---
+
+## Misconception
+
+**Myth:** "Format string bugs only allow memory reads — they can't actually lead to code execution."
+
+**Reality:** The `%n` specifier writes an integer to an arbitrary pointer. With `%hn` and `%hhn` variants, an attacker can write any value to any address in the process's writable memory — including GOT entries, malloc hooks, and return addresses on the stack. On 32-bit systems, this is a reliable code execution primitive in a single printf call. On 64-bit, ASLR and RELRO raise the bar but do not eliminate exploitability — a format string read primitive to leak a libc address, followed by a write to `__malloc_hook`, is a standard CTF exploit chain that works against real programs.

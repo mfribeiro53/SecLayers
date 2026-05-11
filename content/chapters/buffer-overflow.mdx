@@ -1,0 +1,186 @@
+# Buffer Overflows
+
+A buffer overflow occurs when a program writes more data into a buffer than it can hold, and the excess overwrites adjacent memory. It is one of the oldest and most consequential vulnerabilities in software — the Morris Worm (1988) used one, and stack overflows remain relevant in embedded systems, firmware, and legacy native code today.
+
+<Callout kind="insight">
+**The vulnerability isn't the write — it's the lack of a bounds check.** C and C++ do not check array bounds at runtime. When you write past the end of a stack buffer, you're not triggering an exception; you're simply storing bytes at a memory address that the programmer didn't intend to modify. The hardware has no opinion.
+</Callout>
+
+---
+
+## The Classic Stack Overflow
+
+Consider this C function:
+
+```c
+void process_input(int sock) {
+    char buf[128];
+    int n = read(sock, buf, 4096);  // reads up to 4096 bytes into a 128-byte buffer
+    buf[n] = '\0';
+    handle(buf);
+}
+```
+
+The `read` call is told it can write up to 4096 bytes. `buf` holds only 128. The stack frame looks like this:
+
+```
+Higher addresses
+┌─────────────────────┐
+│  Return address     │  ← attacker target
+│  Saved RBP          │
+│  buf[127]           │
+│  buf[126]           │
+│  ...                │
+│  buf[0]             │  ← write starts here
+└─────────────────────┘
+Lower addresses
+```
+
+If the attacker sends 200 bytes, the 128-byte buffer fills, then bytes 129–136 overwrite saved RBP, and bytes 137–144 overwrite the return address. When `process_input` returns, the CPU jumps to the address the attacker put there.
+
+---
+
+## Exploit Primitives
+
+### 1. Shellcode Injection (Classic — pre-NX)
+
+On systems without a non-executable stack (NX/W^X), the attacker places machine code (shellcode) in the buffer itself, then overwrites the return address to point back into `buf`.
+
+```
+buf: [shellcode][padding][return addr → buf]
+                          ↑
+                    Points back to start of buf
+```
+
+The shellcode executes with the process's privileges. A common payload spawns `/bin/sh`:
+
+```asm
+; Simplified 64-bit execve shellcode
+xor   rdi, rdi
+push  rdi            ; null-terminate argv
+mov   rdi, 0x68732f2f6e69622f ; "/bin//sh"
+push  rdi
+mov   rdi, rsp       ; rdi = pointer to "/bin//sh"
+xor   rsi, rsi       ; argv = NULL
+xor   rdx, rdx       ; envp = NULL
+mov   al, 59         ; syscall number for execve
+syscall
+```
+
+### 2. Return-to-libc (ret2libc)
+
+When NX is enabled, attacker-placed shellcode won't execute. Instead, the return address is overwritten to point to a function that already exists in memory — most often `system()` from libc — with the argument `"/bin/sh"` arranged on the stack.
+
+```
+Stack after overflow:
+[return addr → system()][fake return addr][ptr to "/bin/sh"]
+```
+
+No shellcode needed. Works on 32-bit x86 where arguments go on the stack.
+
+### 3. Return-Oriented Programming (ROP)
+
+On 64-bit with NX and ASLR, ret2libc in its classic form doesn't work cleanly (arguments go in registers, not on the stack). ROP chains together small sequences of existing instructions ending in `RET` (called **gadgets**) to build arbitrary computation from the program's own code:
+
+```
+Stack:
+[addr of gadget: pop rdi; ret]
+[pointer to "/bin/sh"]
+[addr of gadget: ret]        ; stack alignment
+[addr of system]
+```
+
+Each `RET` pops the next gadget address from the stack, effectively using the stack as a "program" that sequences gadgets. ROP is Turing-complete — given enough gadgets, any computation is possible.
+
+---
+
+## Off-by-One Overflows
+
+Not all overflows are dramatic 1000-byte blasts. An off-by-one error can be just as dangerous:
+
+```c
+void copy(char *src) {
+    char dst[64];
+    for (int i = 0; i <= strlen(src); i++)  // bug: <= should be <
+        dst[i] = src[i];
+}
+```
+
+A 64-character input writes the null terminator at `dst[64]` — one byte past the buffer. On many x86-64 stacks, the low byte of the saved RBP lives there. Corrupting the low byte of RBP shifts the caller's frame pointer, which can redirect the caller's local variable references when it returns, giving the attacker indirect control.
+
+---
+
+## Heap Overflows
+
+Not all buffer overflows target the stack. Heap overflows corrupt adjacent heap chunks:
+
+```c
+char *a = malloc(32);
+char *b = malloc(32);   // b is allocated right after a
+strcpy(a, attacker_input);  // overflows into b's chunk header or data
+```
+
+Heap exploitation is more complex because layout depends on allocator behavior. Common targets:
+- **Chunk headers** — the metadata `malloc` uses to track allocation size and status. Corrupting these can trick `free` into writing attacker data to an arbitrary address (unlink attack).
+- **Adjacent objects** — function pointers, vtable pointers, or sensitive data stored in adjacent heap allocations.
+
+---
+
+## Dangerous C Functions
+
+These functions perform no bounds checking and should never be used with untrusted data:
+
+| Unsafe | Safe alternative | Notes |
+|---|---|---|
+| `strcpy(dst, src)` | `strncpy(dst, src, sizeof(dst)-1)` or `strlcpy` | `strncpy` does not null-terminate if truncated — always add `dst[n-1] = '\0'` |
+| `strcat(dst, src)` | `strncat(dst, src, sizeof(dst)-strlen(dst)-1)` | |
+| `gets(buf)` | `fgets(buf, sizeof(buf), stdin)` | `gets` is removed from C11 |
+| `sprintf(buf, fmt, ...)` | `snprintf(buf, sizeof(buf), fmt, ...)` | |
+| `scanf("%s", buf)` | `scanf("%127s", buf)` (with field width) | |
+| `read(fd, buf, BIG)` | `read(fd, buf, sizeof(buf))` | |
+
+<Callout kind="warning">
+`strncpy` is not a safe drop-in for `strcpy`. If `src` is longer than `n`, the result is **not** null-terminated. You must manually ensure termination: `dst[n-1] = '\0'` after calling `strncpy`. Use `strlcpy` (where available) or `snprintf` instead.
+</Callout>
+
+---
+
+## Real-World Examples
+
+**MS08-067 (Windows Server Service, 2008)** — a stack overflow in the NetAPI server allowed unauthenticated remote code execution. The Conficker worm infected over 9 million machines by exploiting it within weeks of disclosure.
+
+**Heartbleed (OpenSSL, 2014)** — technically a heap read overflow in the TLS heartbeat extension. A one-line bounds-check omission allowed attackers to read up to 64 KB of server heap memory per request, leaking private keys, passwords, and session tokens.
+
+**EternalBlue (SMBv1, 2017)** — a pool (kernel heap) overflow in Windows SMB. Exploited by the NSA, leaked by Shadow Brokers, weaponised in WannaCry and NotPetya ransomware campaigns affecting 200,000+ machines in 150 countries.
+
+---
+
+## Defenses
+
+### Compiler-Level
+
+- **Stack canaries** (`-fstack-protector-strong`): Random value placed between locals and the return address; checked on function return. Stops linear overflows.
+- **Safe Stack / Shadow Stack (CET)**: Hardware-protected copy of return addresses. Cannot be corrupted by any normal write.
+- **`_FORTIFY_SOURCE=2`**: Replaces dangerous functions (`strcpy`, `memcpy`, etc.) with bounds-checking versions when sizes are known at compile time.
+- **AddressSanitizer (ASAN)**: Instruments every memory access with a validity check. Near-zero false positive rate. 2× performance overhead — ideal for CI/CD fuzzing, not production.
+
+### OS/Hardware-Level
+
+- **NX / W^X**: Pages are either writable or executable, never both. Prevents shellcode injection. Enabled by default on modern OSes.
+- **ASLR**: Randomises base addresses of stack, heap, and libraries. Without knowing addresses, ROP chains and ret2libc require a separate info-leak primitive.
+- **Sandboxing / seccomp**: Restricts which syscalls are available. Even if exploitation succeeds, the attacker may not be able to call `execve`.
+
+### Code-Level
+
+- Prefer safe languages (Rust, Go, Swift) that enforce bounds at the language level.
+- Use `sizeof(buf)` consistently — never hardcode the size separately from the declaration.
+- Enable compiler warnings (`-Wall -Wextra -Werror`) and static analysis.
+- Fuzz input-processing code with AFL++ or libFuzzer before shipping.
+
+---
+
+## Misconception
+
+**Myth:** "Modern compilers and operating systems have made buffer overflows mostly theoretical."
+
+**Reality:** Stack canaries and NX raise the exploitation bar significantly, but they do not eliminate the vulnerability class. Heap overflows bypass stack canaries entirely. Info-leak primitives (format strings, out-of-bounds reads) let attackers defeat ASLR. Real-world exploitation of buffer overflows in firmware, embedded systems, VPN appliances, and kernel drivers occurs routinely in CVE disclosures. The correct defense is eliminating the overflow itself — not relying solely on post-exploitation mitigations.

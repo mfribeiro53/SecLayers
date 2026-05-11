@@ -1,0 +1,150 @@
+# Misconfigured Storage
+
+Object storage misconfigurations have caused some of the largest data breaches in history. AWS S3, Azure Blob Storage, and Google Cloud Storage default to private — but a single misconfiguration can expose billions of records to the public internet with no authentication required.
+
+<Callout kind="danger">
+**Real breaches from public S3 buckets**: Verizon (14M records, 2017), Pentagon (18 billion web scraping records, 2017), Twitch (source code, streamer payouts, 2021), GoDaddy (1.2M WordPress customers, 2021). In most cases, anyone with the bucket URL could download everything — no credentials needed.
+</Callout>
+
+---
+
+## How S3 Becomes Public
+
+S3 access is controlled by multiple overlapping mechanisms. Understanding how they interact is critical, because misconfiguring any one of them can expose data.
+
+### The Four Controls
+
+```
+┌─────────────────────────────────────────────────┐
+│                 Block Public Access              │
+│  (account-level and bucket-level override)       │
+│                        │                        │
+│         ┌──────────────┼──────────────┐         │
+│         │              │              │         │
+│    Bucket Policy   Object ACLs   IAM Policies   │
+└─────────────────────────────────────────────────┘
+```
+
+**Block Public Access (BPA)** is AWS's safety net — introduced after high-profile breaches. It has four independent flags:
+
+| Flag | What it blocks |
+|---|---|
+| `BlockPublicAcls` | Reject any request to set a public ACL on the bucket or objects |
+| `IgnorePublicAcls` | Ignore any existing public ACLs — object-level ACLs have no effect |
+| `BlockPublicPolicy` | Reject bucket policies that grant public access |
+| `RestrictPublicBuckets` | Only allow AWS services and authorized users access, even if a policy grants public access |
+
+**Enable all four flags at the account level.** AWS added the ability to enforce BPA for all buckets in an organization via AWS Organizations SCPs.
+
+### Bucket Policies vs ACLs
+
+**ACLs** (Access Control Lists) are a legacy mechanism that predates bucket policies. They operate at the object and bucket level:
+
+```xml
+<!-- Object ACL: makes a single object public -->
+<Grant>
+  <Grantee xsi:type="Group">
+    <URI>http://acs.amazonaws.com/groups/global/AllUsers</URI>
+  </Grantee>
+  <Permission>READ</Permission>
+</Grant>
+```
+
+**Bucket policies** are IAM-style JSON policies applied to the bucket. They can grant or deny access based on conditions (IP, VPC endpoint, MFA):
+
+```json
+{
+  "Effect": "Allow",
+  "Principal": "*",
+  "Action": "s3:GetObject",
+  "Resource": "arn:aws:s3:::my-bucket/*"
+}
+```
+
+The `Principal: "*"` in a bucket policy grants public read. This is the most common cause of accidental data exposure. AWS now warns and blocks this by default if Block Public Access is enabled.
+
+**Use bucket policies, not ACLs.** AWS recommends disabling ACLs entirely (`BucketOwnerEnforced` ownership) and managing access through bucket policies and IAM.
+
+---
+
+## Finding Public Buckets
+
+Attackers discover misconfigured buckets through:
+
+- **Guessing**: Bucket names often follow predictable patterns (`company-name-prod`, `company-dev-backups`, `company-logs`). Tools like `s3scanner` and `bucket-finder` test thousands of name permutations.
+- **Certificate Transparency**: Subdomains like `files.company.com` appear in CT logs. If the DNS CNAME points to S3, the bucket name is exposed.
+- **Google dorking**: `site:s3.amazonaws.com company-name` finds indexed bucket contents.
+- **GrayHatWarfare**: Public database of open S3 buckets, searchable by keyword.
+
+```bash
+# Example: enumerate common bucket name patterns
+aws s3 ls s3://company-prod-backups --no-sign-request
+aws s3 ls s3://company-dev-db-dumps --no-sign-request
+```
+
+---
+
+## Encryption
+
+Encryption at rest protects data if storage media is physically stolen or if AWS has a compelled access request. It does not protect against a public bucket — a public bucket serves decrypted data over HTTPS.
+
+| Mode | Key management | Use case |
+|---|---|---|
+| **SSE-S3** | AWS manages keys automatically | Default; low overhead |
+| **SSE-KMS** | Keys in AWS KMS; auditable, rotatable | Compliance, audit trail |
+| **SSE-C** | Customer provides key per request | Customer controls keys outside AWS |
+| **Client-side** | Application encrypts before upload | Full customer control; no plaintext in S3 |
+
+Always enforce HTTPS. A bucket policy can deny HTTP access:
+
+```json
+{
+  "Effect": "Deny",
+  "Principal": "*",
+  "Action": "s3:*",
+  "Resource": ["arn:aws:s3:::my-bucket", "arn:aws:s3:::my-bucket/*"],
+  "Condition": { "Bool": { "aws:SecureTransport": "false" } }
+}
+```
+
+---
+
+## Versioning and Object Lock
+
+**Versioning** retains every version of an object. Deleting an object creates a delete marker — the object can be restored. This provides ransomware resilience: an attacker who deletes or overwrites objects cannot permanently destroy data.
+
+**S3 Object Lock (WORM)** prevents any version from being deleted or overwritten for a configured retention period. Even root-level AWS credentials cannot delete locked objects within the retention window. Required for regulatory compliance (SEC 17a-4, FINRA).
+
+```hcl
+resource "aws_s3_bucket_object_lock_configuration" "example" {
+  bucket = aws_s3_bucket.example.id
+  rule {
+    default_retention {
+      mode = "COMPLIANCE"
+      days = 365
+    }
+  }
+}
+```
+
+---
+
+## Secure Bucket Checklist
+
+| Control | How to enforce |
+|---|---|
+| Block Public Access (all 4 flags) | AWS Organizations SCP to deny disabling BPA |
+| No public ACLs | `ObjectOwnership = BucketOwnerEnforced` (disables ACLs) |
+| SSE-KMS encryption | Default encryption setting + deny non-KMS uploads |
+| Versioning enabled | Required for ransomware resilience |
+| Access logging | Log to a separate audit bucket with restricted write access |
+| HTTPS only | Bucket policy with `aws:SecureTransport: false` deny |
+| CloudTrail data events | Log every `GetObject`, `PutObject`, `DeleteObject` |
+
+---
+
+## Misconception
+
+**Myth:** "Our S3 bucket is private — we checked the AWS console and it says 'Objects can be public'."
+
+**Reality:** "Objects can be public" means the bucket-level Block Public Access is not fully enabled — individual objects *could* be made public by a bucket policy or ACL, even if no objects currently are. The safe state is "Bucket and objects are not public" with all four Block Public Access flags enabled. Additionally, a bucket that is "private" at the ACL level can still be exposed via a bucket policy with `Principal: "*"` — check both.

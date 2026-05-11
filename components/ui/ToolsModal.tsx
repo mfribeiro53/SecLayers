@@ -8,11 +8,21 @@ import { TOOL_META } from "@/lib/tool-meta";
 
 // Only include topics that have a built tool
 const BUILT_TOOL_SLUGS = new Set([
+  // Foundations
   "threat-modeling", "cryptography", "input-validation", "secure-sdlc",
+  // Act I — Web Security
   "sql-injection", "xss", "csrf", "auth-sessions", "idor", "ssrf",
   "security-headers", "csp", "defensive-patterns",
+  // Act II — API Security
   "api-auth", "graphql", "jwt", "rate-limiting", "api-versioning",
+  // Act III — Mobile Security
   "mobile-storage", "mobile-tls", "mobile-reversing", "mobile-biometrics", "mobile-intents",
+  // Act IV — Systems / Native
+  "stack", "buffer-overflow", "format-string", "heap", "mitigations", "race-conditions",
+  // Act V — Cloud & Infrastructure
+  "iam", "cloud-storage", "containers", "k8s-rbac", "secrets", "iac", "logging-monitoring",
+  // Act VI — Supply Chain
+  "dep-confusion", "sca", "cicd", "slsa", "sec-tooling",
 ]);
 
 const ACT_NUMBERS = Object.keys(groupTopicsByAct())

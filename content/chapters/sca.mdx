@@ -1,0 +1,131 @@
+# SCA & CVE Triage
+
+A modern web service ships with hundreds of transitive dependencies — packages that depend on packages that depend on packages. Software Composition Analysis (SCA) is the discipline of inventorying those dependencies and matching them against known vulnerability databases to find which ones pose real risk.
+
+## What Is a SBOM?
+
+A **Software Bill of Materials (SBOM)** is a machine-readable inventory of every component in a software artifact: the name, version, license, and origin of every package included in a build. Think of it as a nutrition label for software.
+
+SBOMs are increasingly required by regulation:
+- **US Executive Order 14028 (2021)**: Federal agencies must require SBOMs from software vendors.
+- **EU Cyber Resilience Act**: Requires SBOMs for connected products sold in the EU.
+
+Common SBOM formats:
+| Format | Maintainer | Common use |
+|--------|------------|------------|
+| SPDX   | Linux Foundation | Government, open source |
+| CycloneDX | OWASP | Security-focused, rich metadata |
+
+Generate a CycloneDX SBOM for a Node.js project:
+```bash
+npx @cyclonedx/cyclonedx-npm --output-file sbom.json
+```
+
+## The CVE Database and CVSS Scoring
+
+A **CVE (Common Vulnerabilities and Exposures)** is a public identifier for a security vulnerability in a specific software version. Each CVE is assigned a **CVSS score** (Common Vulnerability Scoring System) from 0.0 to 10.0.
+
+CVSS v3 base score components:
+- **Attack Vector**: Network (easier to exploit) vs. Local (harder)
+- **Attack Complexity**: Low vs. High
+- **Privileges Required**: None vs. High
+- **User Interaction**: None vs. Required
+- **Confidentiality/Integrity/Availability impact**: High/Low/None each
+
+| CVSS range | Severity |
+|------------|----------|
+| 9.0–10.0   | Critical |
+| 7.0–8.9    | High |
+| 4.0–6.9    | Medium |
+| 0.1–3.9    | Low |
+
+<Callout variant="warning">
+**CVSS scores are context-free.** A Critical CVSS score doesn't mean the vulnerability is exploitable in your application. Triage must consider whether your code actually calls the vulnerable code path.
+</Callout>
+
+## The SCA Workflow
+
+SCA tools compare your SBOM against vulnerability databases (NVD, OSV, GitHub Advisory Database, Snyk database) and produce a list of findings. The triage process determines which findings require action.
+
+### Step 1: Generate findings
+
+```bash
+# Grype: free, open-source SCA scanner
+grype dir:. --output table
+
+# Trivy: container + filesystem + SBOM scanner
+trivy fs --scanners vuln .
+
+# Snyk: commercial, deep integration with npm/pip/maven
+snyk test
+```
+
+### Step 2: Triage each finding
+
+For each CVE, answer four questions:
+1. **Is the vulnerable version actually installed?** (SCA tools can report CVEs for packages in your lockfile that aren't in your built artifact.)
+2. **Does your application call the vulnerable code path?** A SQL injection in a CLI tool is irrelevant if the function that's vulnerable is never called.
+3. **Is there a known exploit in the wild?** CVE with a public PoC = prioritize. CVE with no PoC from 4 years ago = deprioritize.
+4. **Is a fix available?** If there's a patched version, the fix cost is low. If the package is unmaintained, the answer may be to replace it.
+
+<DepthBlock label="Triage decision tree">
+```
+CVE found in dependency
+├── Is there a fixed version available?
+│   ├── Yes → Upgrade. Cost is low. Do it.
+│   └── No → Is the vulnerability exploitable in your context?
+│       ├── No → Document the exception, monitor for a fix.
+│       └── Yes → Is the package actively maintained?
+│           ├── Yes → Open issue, track timeline.
+│           └── No → Replace the dependency.
+│
+├── Is the code path reachable from user input?
+│   ├── No → Low priority. Document exception.
+│   └── Yes → High priority. Treat as Critical regardless of CVSS.
+│
+└── Is there an active exploit (public PoC or seen in the wild)?
+    └── Yes → Drop everything. Patch now.
+```
+</DepthBlock>
+
+## Reachability Analysis
+
+Advanced SCA tools go beyond version matching to perform **reachability analysis**: do they actually trace the call path from your application code into the vulnerable function?
+
+```
+Your code → calls lodash.template() → vulnerable function
+                                      ↑ CVE-2021-23337 is here
+```
+
+If your code never calls `_.template()`, the CVE is not reachable and the risk is substantially lower. Tools that do reachability analysis (Snyk Code, Socket.dev, GitHub GHAS) produce far fewer actionable findings than pure version-matching tools.
+
+## License Risk
+
+SCA tools also flag license compliance issues. Mixing GPL code into a proprietary product may require open-sourcing your code. Common risky licenses for commercial software:
+- **GPL v2/v3**: Copyleft — derivative works must also be GPL
+- **AGPL v3**: Network copyleft — even SaaS use triggers copyleft
+- **SSPL**: MongoDB's license, rejected by OSI
+
+Safe licenses for commercial use: MIT, Apache 2.0, BSD-2/3.
+
+## Integrating SCA into CI/CD
+
+```yaml
+# GitHub Actions example
+- name: Run Trivy vulnerability scan
+  uses: aquasecurity/trivy-action@master
+  with:
+    scan-type: 'fs'
+    scan-ref: '.'
+    severity: 'CRITICAL,HIGH'
+    exit-code: '1'          # Fail the build on critical/high
+    ignore-unfixed: true    # Skip CVEs with no available fix
+```
+
+<Callout variant="insight">
+**Alert fatigue is the enemy.** An SCA scan that finds 200 issues will be ignored. Start with `--severity CRITICAL` only, get that to zero, then add HIGH. A small number of actionable findings is more valuable than a comprehensive list no one reads.
+</Callout>
+
+## Common Misconception
+
+**"We scan on release, so we're covered."** Vulnerabilities are published continuously — a CVE affecting your current deployment may be published the day after your last scan. SCA must run on a schedule (at minimum weekly) against production artifact versions, not just at build time.

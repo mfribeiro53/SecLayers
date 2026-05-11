@@ -1,0 +1,38 @@
+[
+  {
+    "id": "fmtstr-junior-01",
+    "question": "What is a format string vulnerability and what causes it?",
+    "answer": "A format string vulnerability occurs when user-controlled data is passed directly as the format string argument to printf-family functions (printf, sprintf, fprintf, syslog, etc.) instead of being passed as a data argument. The cause is a single coding mistake: printf(user_input) instead of printf(\"%s\", user_input). In the vulnerable form, printf parses user_input looking for conversion specifiers like %x, %s, %n. If the attacker supplies %x, printf reads a value from the stack and prints it. If they supply %n, printf writes to a pointer it expects as the next argument. The program ends up executing attacker-directed operations that were never intended by the programmer.",
+    "category": "junior"
+  },
+  {
+    "id": "fmtstr-junior-02",
+    "question": "What does the %n conversion specifier do, and why is it dangerous?",
+    "answer": "%n is a conversion specifier in the printf family that writes the number of characters output so far to the address provided as the corresponding argument. For example: printf(\"AAAA%n\", &count) stores 4 into count. It is dangerous because an attacker who controls the format string can supply %n while placing an arbitrary address as the \"argument\" on the stack. This turns the bug into an arbitrary write primitive: the attacker chooses what value to write (by controlling how many characters are output before %n) and where to write it (by placing a target address in the format string / on the stack). Combined with the %hn (write 2 bytes) and %hhn (write 1 byte) variants, attackers can write any value to any writable address.",
+    "category": "junior"
+  },
+  {
+    "id": "fmtstr-mid-01",
+    "question": "Describe how an attacker uses a format string bug to achieve an arbitrary memory read.",
+    "answer": "Step 1 — Map the stack: Send a format string like %08x.%08x.%08x... (many repetitions). Each %x consumes the next pseudo-argument from the stack frame, printing it in hex. The attacker records the output to understand what's at each stack position.\n\nStep 2 — Use positional specifiers: The n$ syntax selects an argument by position. %7$x reads the 7th pseudo-argument. The attacker uses this to pinpoint specific stack offsets.\n\nStep 3 — Dereference a pointer: %7$s treats the 7th pseudo-argument as a char* and prints the string at that address. If position 7 contains a pointer to interesting memory (e.g., a heap pointer or a pointer to a struct), %7$s reads memory at that address.\n\nStep 4 — Place an address on the stack: If the format string buffer is on the stack, the attacker prepends an arbitrary address to their input. They find which offset that address appears at (using %x iteration), then use %N$s with that offset to dereference it — reading memory at any arbitrary address.",
+    "category": "mid"
+  },
+  {
+    "id": "fmtstr-mid-02",
+    "question": "Why can format string vulnerabilities be more dangerous than buffer overflows in some scenarios?",
+    "answer": "1. No stack corruption: A format string exploit during the read phase performs zero writes to the stack. Stack canaries are irrelevant because no linear memory corruption occurs.\n\n2. Arbitrary write without bounds constraint: An overflow writes bytes starting from a fixed buffer location. A format string %n write goes to any address in writable memory — it is not constrained to adjacent stack memory.\n\n3. Works from a single function call: A single printf(user_input) provides both arbitrary read AND arbitrary write. An attacker doesn't need to find a second primitive.\n\n4. Useful as a stepping stone: When other primitives are available (e.g., a buffer overflow exists but ASLR makes the target address unknown), a format string bug provides the address leak needed to defeat ASLR — making the two bug classes complementary.\n\n5. Found in logging code: Developers routinely pass user input to syslog, fprintf(stderr, ...), etc. without thinking about format parsing — security audits focus on buffer handling but often miss logging code.",
+    "category": "mid"
+  },
+  {
+    "id": "fmtstr-senior-01",
+    "question": "On a 64-bit system with ASLR, RELRO, and PIE enabled, outline a realistic format string exploitation strategy.",
+    "answer": "Challenges: ASLR randomises all base addresses. PIE randomises the binary's own load address. RELRO makes the GOT read-only. So: (a) we can't predict any code or data addresses, (b) we can't overwrite GOT entries.\n\nStrategy:\n\n1. Use the format string read primitive to leak a libc address from the stack. The stack typically contains return addresses into libc (e.g., in __libc_start_main). Use %N$lx to read 8-byte values at various offsets until a libc address is found (identifiable by matching the expected offset from a known symbol).\n\n2. Compute libc base: leaked_addr - known_offset_of_leaked_symbol = libc_base. From libc_base, compute the address of one_gadget (a single libc gadget that calls execve(\"/bin/sh\", NULL, NULL) under specific constraints).\n\n3. Find a writable function pointer target not covered by RELRO: __malloc_hook or __free_hook (in glibc < 2.34) are ideal — they live in libc's data segment, not the binary's GOT, so RELRO doesn't protect them.\n\n4. Use %n to write the one_gadget address to __malloc_hook. Trigger malloc (e.g., by causing a large allocation). __malloc_hook is called, and the gadget executes.\n\nNote: glibc 2.34+ removed malloc hooks. Newer targets require finding other function pointers (e.g., IO_file structures) or using FSOP (File Stream Oriented Programming).",
+    "category": "senior"
+  },
+  {
+    "id": "fmtstr-senior-02",
+    "question": "How does FORTIFY_SOURCE mitigate format string vulnerabilities, and what are its limitations?",
+    "answer": "FORTIFY_SOURCE=2 replaces printf and related functions with __printf_chk (and similar). The check function inspects the format string pointer: if the format string does not point to a read-only memory page, it aborts the program. The reasoning: legitimate format strings are string literals in the .rodata section (read-only). A user-supplied format string lives on the stack or heap (writable) — the check detects this mismatch.\n\nLimitations:\n1. It catches only printf(user_input) style calls. If the programmer passes user input as an argument correctly (%s) but also includes a second user-controlled format string via a higher-level abstraction, FORTIFY may not detect it.\n\n2. It does not help if the format string is stored in a writable global that was initialised from a literal (the pointer passes the check, but the content was modified at runtime by an adjacent vulnerability).\n\n3. It requires the compiler to know the format string at compile time to replace the call — some complex indirect printf calls are not fortified.\n\n4. It is a detection-and-abort mechanism, not prevention. The program terminates — this is better than exploitation, but still a denial of service.\n\nBest practice: FORTIFY_SOURCE is a useful safety net but should not substitute for correct code. The fix is always: never pass user input as a format string — use printf(\"%s\", user_input).",
+    "category": "senior"
+  }
+]

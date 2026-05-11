@@ -1,0 +1,38 @@
+[
+  {
+    "id": "heap-junior-01",
+    "question": "What is a use-after-free vulnerability?",
+    "answer": "A use-after-free (UAF) vulnerability occurs when a program continues to access memory through a pointer after that memory has been returned to the allocator via free(). The freed pointer (called a dangling pointer) still holds the original address — it is not automatically set to NULL in C/C++. If the allocator subsequently gives the same memory to another malloc() call, the old pointer now points to a different object's data. Reading through the dangling pointer reads the new object's data; writing through it corrupts the new object. An attacker who can trigger a malloc() of the same size and fill it with chosen data between the free() and the use can control what the dangling pointer references.",
+    "category": "junior"
+  },
+  {
+    "id": "heap-junior-02",
+    "question": "What is the difference between a heap overflow and a use-after-free?",
+    "answer": "A heap overflow writes past the end of a heap allocation into adjacent memory — the allocation is still 'live' (not freed), but the write goes beyond its allocated bounds. The overflow corrupts whatever the allocator placed after the buffer: another live object's data, chunk header metadata, or free list pointers.\n\nA use-after-free does not require writing past any bounds. Instead, memory is freed legitimately, but the program keeps a reference (dangling pointer) and uses it again — reading stale data or writing to memory that is now owned by a different allocation.\n\nBoth are heap corruption bugs, but they require different conditions: overflow needs adjacent data to be a useful target; UAF needs the timing of free() and the next malloc() to be attacker-controllable.",
+    "category": "junior"
+  },
+  {
+    "id": "heap-mid-01",
+    "question": "What is heap grooming (heap feng shui), and why is it necessary for UAF exploitation?",
+    "answer": "Heap grooming is the technique of manipulating the heap's allocation state — through strategic allocation and deallocation — so that when the vulnerable free() occurs, the freed chunk is the next one returned by malloc() when the attacker's allocation is made.\n\nIt is necessary because heap allocators recycle memory in ways that depend on the sequence of previous allocations and frees, not just the current request. Without grooming, the allocator might satisfy the attacker's malloc() from a completely different region, making the dangling pointer point to unrelated allocator metadata or another object the attacker doesn't control.\n\nCommon grooming techniques: (1) Spray — allocate many objects of the target size to exhaust all existing free chunks, then free the vulnerable object so the next allocation of that size lands in that exact slot. (2) Hole-making — allocate a sequence, free specific ones to create gaps of exactly the right size, position the vulnerable free to land in a known gap.",
+    "category": "mid"
+  },
+  {
+    "id": "heap-mid-02",
+    "question": "Explain tcache poisoning in glibc and how it achieves arbitrary allocation.",
+    "answer": "tcache (thread-local cache) is a per-thread free list in glibc >= 2.26. When a chunk is freed, its user data region is reused to store a pointer to the next free chunk of the same size. Critically, in glibc < 2.29, there is essentially no integrity check on this next pointer.\n\nTcache poisoning: The attacker has a write primitive (heap overflow or UAF write) that overwrites a freed chunk's next pointer with an arbitrary address T. The tcache bin now looks like: [real_free_chunk → T → ...]. The next malloc() of the matching size returns real_free_chunk (legitimate). The following malloc() returns T — an arbitrary address the attacker chose. The program now treats T as a valid heap allocation and writes to it, giving the attacker a write primitive to any address.\n\nCommon target: __free_hook or __malloc_hook (glibc < 2.34) — function pointers called by malloc/free that can be overwritten with a one_gadget address to achieve code execution. glibc 2.32 added safe-linking (XOR mangling of the next pointer with a per-heap secret), requiring a heap address leak to bypass.",
+    "category": "mid"
+  },
+  {
+    "id": "heap-senior-01",
+    "question": "Compare PartitionAlloc (Chrome) with glibc ptmalloc2 from a security perspective.",
+    "answer": "ptmalloc2 (glibc): Single heap for the entire process. All object types share the same bins. An overflow in one type can corrupt an adjacent allocation of any other type. The unlink mechanism stores free list metadata inline in user data — corruption of these pointers during heap overflow enables arbitrary writes. Historically weak integrity checks (though modern glibc added safe-unlinking, tcache safe-linking, etc.).\n\nPartitionAlloc (Chrome): Objects are allocated from type-specific partitions. Each partition is a separate virtual address region — overflowing a buffer in a PartitionAlloc bucket of type A cannot directly corrupt an object of type B (they're in different virtual regions with guard pages between). Metadata (chunk headers, free lists) is stored separately from user data — heap overflows that write past the user data region hit a guard page and crash rather than corrupting allocator metadata.\n\nSecurity implications: PartitionAlloc significantly raises the bar for heap exploitation. Type confusion attacks still exist (they don't need a heap overflow), but cross-type corruption is structurally prevented. UAF within the same type partition is still possible, but the blast radius is limited. Modern browser exploits increasingly target JavaScript engine object graph manipulation (type confusion via JIT) rather than allocator-level heap corruption, partly because PartitionAlloc eliminates the simpler heap corruption paths.",
+    "category": "senior"
+  },
+  {
+    "id": "heap-senior-02",
+    "question": "How does Rust's ownership model prevent use-after-free at compile time?",
+    "answer": "Rust enforces three rules at compile time via the borrow checker:\n\n1. Every value has exactly one owner. When the owner goes out of scope, the value is dropped (freed).\n2. You can have either one mutable reference OR any number of immutable references to a value — never both simultaneously.\n3. References cannot outlive the value they point to.\n\nRule 3 directly prevents UAF: the compiler tracks lifetimes. A reference to a value cannot exist after the value's owner drops it. If you try to use a reference to a freed allocation, the compiler emits a lifetime error at compile time — the program cannot be built.\n\nExample of what Rust prevents:\n```rust\nlet r;\n{\n    let s = String::from(\"hello\");\n    r = &s;  // Compile error: s does not live long enough\n}            // s is dropped here\nprintln!(\"{}\", r);  // Would be UAF — compiler rejects this\n```\n\nThis is not a runtime check — there is no overhead. The borrow checker is a static analysis pass that runs during compilation. This is why Rust is described as having zero-cost memory safety: UAF, double-free, and dangling pointers are eliminated at compile time without requiring a garbage collector or runtime bounds checks (though bounds checks on slice indexing are still present).\n\nThe limitation: unsafe Rust code blocks can opt out of the borrow checker. UAF in unsafe blocks is possible and does occur in practice (e.g., in some early versions of Rust stdlib or third-party crates).",
+    "category": "senior"
+  }
+]

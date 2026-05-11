@@ -1,0 +1,44 @@
+[
+  {
+    "id": "stack-junior-01",
+    "question": "What is the call stack and why does it grow downward?",
+    "answer": "The call stack is a region of memory that stores function call frames — each frame holds local variables, saved registers, and the return address for that function. It grows downward (toward lower addresses) by convention on x86/x86-64: the CALL instruction pushes the return address at the current RSP and then decrements RSP. This is purely a convention that dates back to early Unix systems; growing downward means the stack and heap can share the middle of the address space, expanding toward each other without a fixed partition.",
+    "category": "junior"
+  },
+  {
+    "id": "stack-junior-02",
+    "question": "What information is stored in a stack frame?",
+    "answer": "A typical stack frame contains: (1) the return address — the instruction pointer value to restore after the function returns, saved by the CALL instruction; (2) the saved frame pointer (RBP/EBP) — so the callee can restore the caller's frame; (3) local variables — buffers, integers, pointers declared inside the function; (4) spilled registers — registers the callee must preserve for the caller (callee-saved registers) stored temporarily on the stack; (5) on 32-bit x86, function arguments — though on x86-64 Linux the first six integer args go in registers (RDI, RSI, RDX, RCX, R8, R9), with extras on the stack.",
+    "category": "junior"
+  },
+  {
+    "id": "stack-junior-03",
+    "question": "What is a return address and why is it security-critical?",
+    "answer": "When the CPU executes a CALL instruction, it pushes the address of the next instruction (the return address) onto the stack before jumping to the callee. When the callee executes RET, it pops that address back into the instruction pointer (RIP/EIP) and execution continues from there. It is security-critical because whoever controls the return address controls where the CPU goes when the function returns. An attacker who can overwrite the return address — for example, through a stack buffer overflow — can redirect execution to arbitrary code, such as shellcode placed on the stack or a useful gadget in the program's existing code.",
+    "category": "junior"
+  },
+  {
+    "id": "stack-mid-01",
+    "question": "Describe the prologue and epilogue of a function at the assembly level.",
+    "answer": "Prologue (x86-64 System V): PUSH RBP saves the caller's frame pointer; MOV RBP, RSP copies the current stack pointer to RBP, establishing the frame base; SUB RSP, N reserves N bytes for local variables and alignment. The locals are then referenced as negative offsets from RBP (e.g., [RBP-8] for the first local).\n\nEpilogue: LEAVE is equivalent to MOV RSP, RBP; POP RBP — it restores the stack pointer and the caller's frame pointer. RET then pops the return address from the stack into RIP and jumps there.\n\nModern compilers often omit the frame pointer (RBP) entirely with -fomit-frame-pointer, addressing locals relative to RSP instead, which makes unwinding harder but saves a register for the compiler to use.",
+    "category": "mid"
+  },
+  {
+    "id": "stack-mid-02",
+    "question": "How does x86-64 pass function arguments differently from 32-bit x86, and what are the security implications?",
+    "answer": "32-bit x86 (cdecl): All arguments are pushed onto the stack right-to-left before the CALL. This means arguments are adjacent to the return address on the stack — an overflow in a local variable can potentially tamper with argument values or corrupt the return address by passing through argument memory.\n\nx86-64 System V ABI: The first six integer/pointer arguments go in registers (RDI, RSI, RDX, RCX, R8, R9), and floating-point in XMM0-XMM7. Only arguments beyond six live on the stack.\n\nSecurity implications: On x86-64, the stack frame contains fewer attacker-visible values — arguments that lived on the stack in 32-bit code are now in registers, which are harder to corrupt from a local buffer overflow. However, the return address is still on the stack and remains the primary overflow target. Stack layout knowledge is still critical for computing the exact offset from a vulnerable buffer to the return address.",
+    "category": "mid"
+  },
+  {
+    "id": "stack-senior-01",
+    "question": "Explain how a shadow stack (Intel CET) differs from a stack canary as a defense against return address overwrites.",
+    "answer": "Stack canary: A random value is placed between local variables and the saved return address at function entry. Before RET, the compiler emits code that reads the canary and compares it against the stored original; if they differ, the program aborts. Weaknesses: (a) the canary is in the same linear memory as the buffer — any non-linear write primitive (e.g., a format string %n write to an arbitrary address) bypasses it entirely; (b) if the attacker can leak the canary value (via format string read, info leak), they can reproduce it in their overflow and bypass the check; (c) it checks only at function return, not at the point of corruption.\n\nShadow stack (Intel CET): A second, hardware-protected stack stores only return addresses. The OS maps the shadow stack with a special page attribute that only CALL/RET hardware instructions can write to — normal load/store instructions targeting shadow stack pages fault. On RET, the hardware compares the return address on the regular stack with the shadow stack and faults if they differ. Bypasses require: a CET-unaware gadget (e.g., a JMP [reg] gadget that doesn't use RET), a kernel or hypervisor vulnerability, or targeting a thread that opted out of CET. It is fundamentally stronger because it is hardware-enforced and cannot be bypassed by any write primitive operating on normal memory.",
+    "category": "senior"
+  },
+  {
+    "id": "stack-senior-02",
+    "question": "A heap-allocated object contains a function pointer. A stack buffer overflow is not possible. What alternative attack paths exist, and how would you find them?",
+    "answer": "If the stack is protected (canary + shadow stack) but heap objects contain function pointers:\n\n1. Heap overflow: A heap buffer adjacent to an object with a function pointer can be overflowed to overwrite the pointer. Use heap grooming (allocate/free to control allocator layout) to position the overflow source adjacent to the target.\n\n2. Use-after-free: Free the object, then reallocate the freed chunk with attacker-controlled data that looks like the object but has a tampered function pointer. The dangling pointer in the original code now calls through attacker data.\n\n3. Type confusion: In C++, a base class pointer to a derived object stores a vtable pointer on the heap. Corrupting the vtable pointer redirects all virtual calls on that object.\n\n4. Format string: If printf-family calls use an attacker-controlled format string, arbitrary writes (%n) can overwrite a function pointer in the GOT or BSS without any overflow.\n\nFinding these: (a) ASAN/Valgrind detect heap corruption dynamically; (b) static analysis (CodeQL, Coverity) flags use-after-free patterns; (c) fuzzing (AFL++, libFuzzer) exercises allocator paths; (d) manual review of heap allocation patterns, especially where object lifetime and pointer lifetime diverge.",
+    "category": "senior"
+  }
+]

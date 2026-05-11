@@ -1,0 +1,44 @@
+[
+  {
+    "id": "bof-junior-01",
+    "question": "What is a buffer overflow and how does it occur?",
+    "answer": "A buffer overflow occurs when a program writes more data into a fixed-size memory buffer than it was allocated to hold. The excess bytes overwrite adjacent memory. It happens because languages like C and C++ perform no automatic bounds checking on array writes — the programmer is responsible for ensuring writes stay within allocated bounds. Common causes include using unbounded copy functions (strcpy, gets, sprintf), trusting user-supplied length values, and off-by-one errors in loop bounds.",
+    "category": "junior"
+  },
+  {
+    "id": "bof-junior-02",
+    "question": "What C functions are dangerous for buffer overflow vulnerabilities, and what should you use instead?",
+    "answer": "Dangerous functions and their safe alternatives: strcpy → strncpy with explicit null-termination or strlcpy; strcat → strncat; gets → fgets; sprintf → snprintf; scanf(\"%s\") → scanf with field width like \"%127s\". The common pattern is that the dangerous versions have no length parameter — they copy until a null byte, regardless of the destination size. The safe alternatives accept a maximum length argument. Note that strncpy does NOT null-terminate if the source is longer than n, so you must add dst[n-1]='\\0' manually. Even safer: use snprintf for all string construction, or switch to a language with memory safety guarantees.",
+    "category": "junior"
+  },
+  {
+    "id": "bof-mid-01",
+    "question": "What is return-to-libc (ret2libc) and why did it replace shellcode injection?",
+    "answer": "Ret2libc is a technique that overwrites the return address to point to an existing library function (most commonly system() from libc) rather than injecting new shellcode. It emerged as a response to the NX (Non-eXecutable) bit / DEP (Data Execution Prevention), which marks stack and heap pages as non-executable. With NX enabled, pushing shellcode onto the stack and jumping to it causes an immediate fault because the CPU refuses to execute data pages.\n\nRet2libc sidesteps this by reusing code that already exists in executable memory. On 32-bit x86, the stack is arranged so system() sees a valid argument: [addr of system][fake return][addr of \"/bin/sh string in memory]. On 64-bit, arguments go in registers (RDI, RSI...), which ret2libc alone can't set easily — leading to ROP chains as the next evolution.",
+    "category": "mid"
+  },
+  {
+    "id": "bof-mid-02",
+    "question": "Explain Return-Oriented Programming (ROP) at a high level.",
+    "answer": "Return-Oriented Programming (ROP) builds arbitrary computation from small sequences of existing instructions called gadgets. A gadget is a sequence ending in a RET instruction, such as: pop rdi; ret or mov [rax], rbx; ret. By overwriting the return address to point to a gadget, and placing the next gadget address immediately after on the stack, each RET effectively pops and jumps to the next gadget — the stack acts as a program counter for a second, attacker-controlled execution stream.\n\nROP defeats NX because all executed instructions are in the program's legitimate executable code; no new code is introduced. It defeats ASLR if the attacker can leak a code address to compute gadget offsets. Finding gadgets is automated by tools like ROPgadget, ropper, and pwntools. ROP is Turing-complete — given sufficient gadgets, any computation (including setting argument registers and calling execve) is achievable.",
+    "category": "mid"
+  },
+  {
+    "id": "bof-mid-03",
+    "question": "How does an off-by-one overflow differ from a classic overflow, and can it still lead to exploitation?",
+    "answer": "A classic overflow writes many bytes past the buffer end, directly overwriting the return address. An off-by-one overflow writes exactly one byte past the last valid index — often the null terminator in a loop that uses <= instead of <.\n\nThat one byte can still be exploitable. On x86/x86-64, if the overflowed byte hits the low byte of the saved frame pointer (RBP), the attacker shifts the caller's frame base by up to 255 bytes. When the caller returns and uses RBP-relative addressing for its own locals, those references now point to attacker-controlled data. This is the off-by-one frame pointer overwrite — it requires more careful exploitation than a direct return address overwrite but is a real attack path, especially in 32-bit code.",
+    "category": "mid"
+  },
+  {
+    "id": "bof-senior-01",
+    "question": "You're reviewing a C codebase that processes binary network packets. Describe your systematic approach to finding buffer overflow vulnerabilities.",
+    "answer": "1. Identify all input surfaces: network sockets, file reads, IPC. These are the entry points for attacker-controlled data.\n\n2. Trace data flow: Follow every read/recv/fread call to see where the data lands and how far it travels through the call graph before being consumed.\n\n3. Check length handling at every step: Does the read size come from the packet header? Is it validated against the buffer size before use? Is the validated length carried through, or is there a re-read of the untrusted length later?\n\n4. Look for dangerous patterns: strcpy/sprintf with a source that touched network data. Manual loops with <= instead of <. Arithmetic on lengths (e.g., total_len = header_len + body_len — does this overflow a uint16?).\n\n5. Integer overflow as a precursor: Many buffer overflows are reached via integer overflow in length calculations. size_t len = (uint16_t)a + (uint16_t)b can wrap to a small value, causing a short allocation followed by a long copy.\n\n6. Heap layout awareness: For heap overflows, identify what is allocated immediately after vulnerable buffers. Function pointers and vtables are prime targets.\n\n7. Automation: Run AFL++ with ASAN to fuzz packet parsers. Static analysis (CodeQL, Coverity) to flag unsafe function usage. Sanitizer builds for all fuzz corpora.",
+    "category": "senior"
+  },
+  {
+    "id": "bof-senior-02",
+    "question": "A stack canary is in place. What techniques can defeat it, and what defenses counter each technique?",
+    "answer": "1. Canary leak via info-leak primitive: If the program has a format string bug or an out-of-bounds read, the attacker reads the canary value from the stack and includes it verbatim in the overflow payload. Counter: eliminate info-leak primitives; use RELRO + PIE to increase difficulty of all leaks.\n\n2. Brute force (fork servers): If the process forks without exec, child processes inherit the parent's canary. Blind brute force byte-by-byte is feasible for 32-bit canaries (256^3 guesses). Counter: re-randomise canary on fork (OpenBSD does this); use exec-based server models.\n\n3. Non-linear write: If the attacker can write to an arbitrary address (e.g., via format string %n, or a heap corruption primitive), they can directly overwrite the return address in memory, bypassing the canary entirely since the canary bytes are never touched. Counter: shadow stack / Intel CET (hardware-enforced, not just in-band checks).\n\n4. Overwriting non-return-address targets: Function pointers and GOT entries don't go through canary checks. Counter: Full RELRO (read-only GOT after startup); PIE + ASLR for position independence.\n\n5. Stack pivoting: Redirect RSP to a different, attacker-controlled region before RET — the canary check operates on the original RSP region and passes. Counter: shadow stack; kernel-level CFI.",
+    "category": "senior"
+  }
+]

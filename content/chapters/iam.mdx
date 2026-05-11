@@ -1,0 +1,149 @@
+# IAM & Least Privilege
+
+Identity and Access Management (IAM) is the set of policies, technologies, and practices that control **who can do what** on which resources. In cloud environments, IAM is the primary boundary between a misconfiguration and a breach — a single over-permissioned role can give an attacker access to an entire account.
+
+<Callout kind="insight">
+**The principle of least privilege**: every identity (user, service, process) should have only the permissions required to perform its specific job — nothing more. Permissions that aren't needed are attack surface that isn't defended.
+</Callout>
+
+---
+
+## IAM Fundamentals (AWS Model)
+
+AWS IAM illustrates the core concepts that appear in every cloud provider:
+
+| Concept | Description |
+|---|---|
+| **User** | A persistent identity for a human. Has long-lived credentials (access key + secret). |
+| **Group** | Collection of users that share a policy. Simplifies permission management. |
+| **Role** | Temporary identity assumed by a service, EC2 instance, Lambda function, or another account. |
+| **Policy** | JSON document that defines allowed/denied actions on resources. Attached to identities. |
+
+### Policy Evaluation Logic
+
+AWS evaluates policies in a strict order:
+
+```
+1. Explicit Deny  → immediately deny, evaluation stops
+2. Explicit Allow → allow, unless step 1 triggered
+3. Implicit Deny  → default outcome if no Allow matched
+```
+
+This means **a single Deny statement overrides any number of Allow statements**. Denies are useful for hard guardrails — e.g., prevent any identity from disabling CloudTrail regardless of other permissions.
+
+### Policy Example: Scoped vs Overly Permissive
+
+```json
+// Over-permissive (avoid in production)
+{
+  "Effect": "Allow",
+  "Action": ["*"],
+  "Resource": ["*"]
+}
+
+// Scoped to what the application actually needs
+{
+  "Effect": "Allow",
+  "Action": ["s3:GetObject", "s3:PutObject"],
+  "Resource": ["arn:aws:s3:::app-uploads/*"]
+}
+```
+
+The wildcard policy grants full administrator access. An attacker who compromises the application inherits that access — they can read all S3 buckets, create IAM users, delete databases, and exfiltrate everything.
+
+---
+
+## IAM Privilege Escalation
+
+IAM misconfigurations don't just cause data exposure — they enable **privilege escalation**: gaining more permissions than initially granted.
+
+### PassRole Abuse
+
+`iam:PassRole` allows attaching an IAM role to a service. If a developer has `iam:PassRole` and can create an EC2 instance, they can launch an instance with an admin role — even if they themselves don't have admin access.
+
+```
+Developer has:         EC2:RunInstances + IAM:PassRole
+Admin role exists:     arn:aws:iam::123456789:role/AdminRole
+
+Attack:
+1. Launch EC2 instance with AdminRole attached
+2. SSH into instance
+3. Call instance metadata: curl http://169.254.169.254/latest/meta-data/iam/security-credentials/AdminRole
+4. Retrieve temporary admin credentials
+5. Use them from any machine
+```
+
+### Instance Metadata Service (IMDS) Credentials
+
+EC2 instances with an attached IAM role expose temporary credentials at a fixed local URL. SSRF vulnerabilities can be chained to steal these:
+
+```bash
+# From inside the EC2 instance (or via SSRF):
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/
+# Returns role name, then:
+curl http://169.254.169.254/latest/meta-data/iam/security-credentials/MyRole
+# Returns AccessKeyId, SecretAccessKey, Token — valid for ~1h
+```
+
+**IMDSv2** requires a PUT request with a TTL token before the GET, blocking most SSRF attacks (which typically can't make the PUT first). Always enforce IMDSv2:
+
+```bash
+aws ec2 modify-instance-metadata-options \
+  --http-tokens required \
+  --instance-id i-1234567890abcdef0
+```
+
+---
+
+## Common IAM Mistakes
+
+| Mistake | Risk | Fix |
+|---|---|---|
+| Wildcard actions/resources | Full account access from one compromise | Enumerate required permissions; use IAM Access Analyzer |
+| Unused permissions | Larger blast radius | Review with AWS IAM Access Advisor; remove unused permissions |
+| Long-lived credentials for services | Credential theft persists forever | Use roles with STS temporary credentials |
+| No MFA on privileged users | Account takeover via phishing | Enforce MFA via SCP or conditional policies |
+| Inline policies on many users | Hard to audit and update | Use managed policies attached to groups/roles |
+| Cross-account trust without conditions | Any identity in trusted account can assume the role | Add `aws:PrincipalArn` conditions to trust policies |
+
+---
+
+## Service Accounts in Kubernetes
+
+Kubernetes uses **service accounts** as the IAM equivalent for pods. By default, every pod is auto-mounted with a service account token — even if it doesn't need one. That token, if stolen via any compromise, can be used to call the Kubernetes API.
+
+```yaml
+# Disable auto-mounting if the pod doesn't need API access
+spec:
+  automountServiceAccountToken: false
+```
+
+Assign service accounts with minimal RBAC permissions. A compromised pod with a wildcard ClusterRole can list all secrets in the cluster.
+
+---
+
+## Detection and Auditing
+
+**AWS IAM Access Analyzer**: Scans IAM policies and resource policies to identify access granted to external principals or overly permissive policies.
+
+**CloudTrail**: Logs every IAM API call — `CreateUser`, `AttachRolePolicy`, `AssumeRole`. Alert on privilege escalation patterns: a non-admin user calling `iam:AttachUserPolicy` or `iam:CreateAccessKey` on other users.
+
+**Permission boundaries**: IAM feature that caps the maximum permissions a role can have, even if a more permissive policy is attached. Useful for delegating IAM management to sub-teams without letting them grant themselves full admin.
+
+```json
+// Permission boundary: this role can never exceed S3 actions,
+// even if an Allow * policy is attached
+{
+  "Effect": "Allow",
+  "Action": ["s3:*"],
+  "Resource": ["*"]
+}
+```
+
+---
+
+## Misconception
+
+**Myth:** "IAM is just about access control — it's the security team's problem, not developers'."
+
+**Reality:** IAM is the mechanism that determines what happens when your application is compromised. An application running with a wildcard IAM role transforms a single RCE vulnerability into a full cloud account breach. Developers who write Terraform, deploy Lambda functions, or configure ECS tasks are making IAM decisions every day. Least privilege must be designed in — it cannot be bolted on after the fact.

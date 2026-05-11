@@ -1,0 +1,187 @@
+# Race Conditions & TOCTOU
+
+A race condition is a class of bug where the correctness of a program depends on the relative timing of two or more events that can occur in any order. In security contexts, **the attacker is the scheduler**: they manipulate timing to win a critical race and reach a state the developer assumed was impossible.
+
+<Callout kind="insight">
+**The attacker doesn't need to win the race every time — they need to win it once.** Race conditions are probabilistic exploits: run them enough times, or manipulate system load to extend the timing window, and success becomes inevitable.
+</Callout>
+
+---
+
+## TOCTOU: Time-of-Check to Time-of-Use
+
+TOCTOU is the canonical security race condition. The pattern:
+
+1. **Check**: The program verifies some condition (e.g., the user has permission to access a file).
+2. **Use**: The program acts on the subject (e.g., opens and reads the file).
+
+Between check and use, the attacker changes the subject so that the check passed on one thing but the use operates on a different thing.
+
+### Classic Example: Privilege Escalation via Symlinks
+
+```c
+// setuid root program — allows users to write to their own files
+void write_file(const char *path, const char *data) {
+    // Check: is the file owned by the calling user?
+    struct stat st;
+    if (stat(path, &st) != 0 || st.st_uid != getuid()) {
+        abort();
+    }
+    // Use: open and write
+    int fd = open(path, O_WRONLY);
+    write(fd, data, strlen(data));
+}
+```
+
+Attack:
+1. Attacker creates `/tmp/myfile` (owned by them) — passes the `stat` check.
+2. Attacker runs a loop: `while true; do rm /tmp/myfile; ln -s /etc/passwd /tmp/myfile; done`
+3. If the symlink is created between `stat` and `open`, the setuid program opens `/etc/passwd` and writes to it — owned by root, bypassing the check.
+
+The larger the window between check and use, the easier the race. File system operations, IPC, and network requests all involve significant delays — ample time for an attacker with control over a loop.
+
+---
+
+## Filesystem Races
+
+### `/tmp` Races (Symlink Attacks)
+
+World-writable directories like `/tmp` are a classic TOCTOU staging ground:
+- A setuid program creates `/tmp/tmpXXX` with `mktemp()` (non-atomic), then opens it
+- Between `mktemp` returning a path and the program opening it, the attacker creates a symlink at that path pointing to a sensitive file
+- The program opens the symlink target instead
+
+**Fix**: `mkstemp()` atomically creates and opens the file in one syscall. The `O_CREAT | O_EXCL` flags to `open()` fail if the path already exists, preventing symlink substitution.
+
+### Canonical Defense: `openat` + File Descriptor Locking
+
+```c
+// Open the directory, then operate on a path relative to the open fd
+int dir_fd = open("/safe/dir", O_RDONLY | O_DIRECTORY);
+int file_fd = openat(dir_fd, "filename", O_WRONLY | O_NOFOLLOW);
+// O_NOFOLLOW refuses to follow symlinks at the final path component
+// Operations on file_fd are safe — it's pinned to the inode, not the path
+```
+
+Once an `fd` is open, it refers to an **inode**, not a path. Subsequent path changes (renames, symlink swaps) don't affect an already-open file descriptor.
+
+---
+
+## Kernel Race Conditions
+
+Kernel code is deeply concurrent: interrupt handlers, softirqs, system call handlers, and workqueues all run concurrently on multi-core systems. Missing a lock — or locking in the wrong order — creates a race.
+
+### Use-After-Free via Race (Double Fetch)
+
+Many kernel vulnerabilities combine a race with a UAF:
+
+```c
+// Simplified kernel path
+if (validate(user_ptr)) {      // reads user memory: check
+    value = *user_ptr;         // reads user memory again: use
+    process(value);
+}
+```
+
+If `user_ptr` points to shared memory that another thread modifies between the validate and the dereference, the kernel processes an unvalidated value. This is a **double fetch** (the user pointer is read twice without atomicity). Attackers use threads that spin modifying the shared memory to win this race.
+
+### `userfaultfd` — Extending the Race Window
+
+`userfaultfd` is a Linux syscall that lets userspace handle its own page faults. An attacker can:
+1. Set up a `userfaultfd` on a memory page
+2. Pass a pointer to that page to a vulnerable kernel syscall
+3. When the kernel reads from that page (triggering a fault), the kernel blocks and calls back to userspace
+4. Userspace now has unlimited time to perform the race: modify shared state, prepare a fake object, etc.
+5. Resume the page fault — the kernel reads the value the attacker just arranged
+
+`userfaultfd` effectively freezes the kernel in the middle of a race window, turning a timing race into a deterministic exploit. Linux has progressively restricted unprivileged `userfaultfd` use (`vm.unprivileged_userfaultfd=0` in modern kernels).
+
+---
+
+## Application-Level Race Conditions
+
+### Double-Spend (Financial Logic)
+
+```python
+def transfer(user_id, amount, target_account):
+    balance = db.query("SELECT balance FROM accounts WHERE id = ?", user_id)
+    if balance >= amount:
+        db.execute("UPDATE accounts SET balance = balance - ? WHERE id = ?", amount, user_id)
+        db.execute("UPDATE accounts SET balance = balance + ? WHERE id = ?", amount, target_account)
+```
+
+Two concurrent transfers from the same account both read `balance = 100`. Both see `100 >= 50`. Both deduct 50. The balance goes negative — **double spend**.
+
+Fix: Use database transactions with appropriate isolation level (`SERIALIZABLE`) or optimistic locking (check that balance hasn't changed between read and write):
+
+```sql
+UPDATE accounts SET balance = balance - 50
+WHERE id = ? AND balance >= 50
+-- Rows affected = 0 means race was lost; retry or fail
+```
+
+Or pessimistic locking:
+```sql
+SELECT balance FROM accounts WHERE id = ? FOR UPDATE
+-- row is locked; concurrent transactions block until this commits
+```
+
+### Session Token Race
+
+Parallel requests can cause authentication state races. If `check_session()` and `invalidate_session()` are not atomic, two concurrent requests can both pass the check before invalidation propagates.
+
+---
+
+## Concurrency Primitives and Their Misuse
+
+| Primitive | Purpose | Common Mistake |
+|---|---|---|
+| Mutex (lock) | Serialise access to shared state | Checking a condition outside the lock, then acting inside it |
+| Read-Write Lock | Multiple readers or one writer | Writer starvation; or taking reader lock when writes are needed |
+| Semaphore | Count available resources | Releasing without acquiring (corrupt count) |
+| Condition variable | Signal state change | Spurious wakeup not handled; signal lost if no waiter |
+| Atomic operations | Lock-free single-word CAS/XCHG | Assumed atomicity of compound operations (`a++` on non-atomic types) |
+
+### Example: Lock Order Inversion (Deadlock)
+
+```
+Thread A: lock(mutex_X); lock(mutex_Y); ...
+Thread B: lock(mutex_Y); lock(mutex_X); ...
+```
+
+If A holds X and B holds Y, both wait forever. Deadlocks aren't security vulnerabilities directly, but they're a denial-of-service vector and often found near actual race condition bugs.
+
+---
+
+## Detection Tools
+
+| Tool | Type | What It Finds |
+|---|---|---|
+| **TSan (ThreadSanitizer)** | Dynamic instrumentation | Data races — concurrent reads/writes to shared memory without synchronisation |
+| **Helgrind (Valgrind)** | Dynamic | Lock-order violations, races on pthreads primitives |
+| **Race Fuzzing (AFL++ with multiple threads)** | Fuzzing | File system TOCTOU, kernel races |
+| **Static analysis (CodeQL, Coverity)** | Static | TOCTOU patterns, missing locks in shared-state access |
+| **Kernel: KCSAN** | Dynamic kernel instrumentation | Kernel data races; analogous to TSan for kernel code |
+
+TSan is the most practical: it instruments the binary at compile time with `-fsanitize=thread` and detects actual data races at runtime with ~5–15× overhead. False positives exist for intentional lock-free algorithms.
+
+---
+
+## Defenses Summary
+
+| Vulnerability | Fix |
+|---|---|
+| TOCTOU on files | Use `openat` + `O_NOFOLLOW`; `mkstemp`; operate on fd not path after open |
+| `/tmp` symlink races | Avoid world-writable directories for setuid temp files; use per-user tmp dirs |
+| Kernel double-fetch | Single fetch into kernel buffer, operate on that copy; use `get_user()` once |
+| Database double-spend | `SELECT ... FOR UPDATE` or `UPDATE ... WHERE balance >= amount` (check-and-set) |
+| Missing lock | TSan in CI; code review for all accesses to shared state |
+| `userfaultfd` abuse | Disable unprivileged userfaultfd; restrict to `CAP_SYS_PTRACE` |
+
+---
+
+## Misconception
+
+**Myth:** "Race conditions only cause intermittent bugs and crashes — they're not reliably exploitable."
+
+**Reality:** Reliability is a function of window size and loop speed. An attacker running a tight loop on a modern multi-core machine can win a race that requires 1 microsecond of overlap many times per second. Tools like `userfaultfd`, CPU pinning, and real-time scheduling (`SCHED_FIFO`) give attackers fine-grained control over timing. The Dirty COW (CVE-2016-5180) kernel race condition was reliably exploitable to gain root in seconds on most Linux systems. Race conditions are probabilistic, but attackers choose their own sample size.

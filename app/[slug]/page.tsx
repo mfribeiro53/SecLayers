@@ -30,6 +30,24 @@ import TLSVisualizerTool from "@/components/tools/TLSVisualizerTool";
 import APKExplorerTool from "@/components/tools/APKExplorerTool";
 import AuthBypassTreeTool from "@/components/tools/AuthBypassTreeTool";
 import IntentRouterTool from "@/components/tools/IntentRouterTool";
+import StackFrameTool from "@/components/tools/StackFrameTool";
+import OverflowAnimatorTool from "@/components/tools/OverflowAnimatorTool";
+import PrintfSimulatorTool from "@/components/tools/PrintfSimulatorTool";
+import HeapVisualizerTool from "@/components/tools/HeapVisualizerTool";
+import MitigationToggleTool from "@/components/tools/MitigationToggleTool";
+import ThreadTimelineTool from "@/components/tools/ThreadTimelineTool";
+import IAMPolicySimulatorTool from "@/components/tools/IAMPolicySimulatorTool";
+import BucketACLTool from "@/components/tools/BucketACLTool";
+import DockerfileLinterTool from "@/components/tools/DockerfileLinterTool";
+import K8sRBACBuilderTool from "@/components/tools/K8sRBACBuilderTool";
+import SecretSprawlTool from "@/components/tools/SecretSprawlTool";
+import TerraformScannerTool from "@/components/tools/TerraformScannerTool";
+import LogInjectorTool from "@/components/tools/LogInjectorTool";
+import DepResolverTool from "@/components/tools/DepResolverTool";
+import SBOMExplorerTool from "@/components/tools/SBOMExplorerTool";
+import PipelineDAGTool from "@/components/tools/PipelineDAGTool";
+import ProvenanceChainTool from "@/components/tools/ProvenanceChainTool";
+import SASTRuleBuilderTool from "@/components/tools/SASTRuleBuilderTool";
 import { Callout } from "@/components/ui/Callout";
 import { DepthBlock } from "@/components/ui/DepthBlock";
 import { CodeBlock } from "@/components/ui/CodeBlock";
@@ -43,6 +61,11 @@ const TOOL_MAP: Record<string, React.ComponentType> = {
   JWTAnatomyTool, RateLimiterTool, ApiDiffTool,
   MobileFSExplorerTool, TLSVisualizerTool, APKExplorerTool,
   AuthBypassTreeTool, IntentRouterTool,
+  StackFrameTool, OverflowAnimatorTool, PrintfSimulatorTool,
+  HeapVisualizerTool, MitigationToggleTool, ThreadTimelineTool,
+  IAMPolicySimulatorTool, BucketACLTool, DockerfileLinterTool,
+  K8sRBACBuilderTool, SecretSprawlTool, TerraformScannerTool, LogInjectorTool,
+  DepResolverTool, SBOMExplorerTool, PipelineDAGTool, ProvenanceChainTool, SASTRuleBuilderTool,
 };
 
 export function generateStaticParams() {

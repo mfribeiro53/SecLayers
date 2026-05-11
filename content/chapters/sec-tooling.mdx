@@ -1,0 +1,209 @@
+# Security Testing & Tooling
+
+Security testing is the systematic process of finding vulnerabilities before attackers do. The tooling landscape spans automated scanners, manual techniques, and organizational practices — each finding different classes of vulnerabilities that the others miss.
+
+## The Testing Taxonomy
+
+Security testing breaks into four primary disciplines:
+
+| Tool type | What it analyzes | When it runs | What it finds |
+|-----------|-----------------|--------------|---------------|
+| **SAST** (Static Application Security Testing) | Source code | Pre-commit, PR, CI | Injection flaws, hardcoded secrets, insecure patterns |
+| **DAST** (Dynamic Application Security Testing) | Running application | Post-deploy (staging) | Auth bypasses, injection via HTTP, business logic |
+| **SCA** (Software Composition Analysis) | Dependencies | CI, scheduled | CVEs in libraries, license violations |
+| **IAST** (Interactive Application Security Testing) | Runtime instrumentation | During test execution | Data flows, taint tracking |
+
+No single tool covers all vulnerability classes. A mature security program uses all four.
+
+## SAST: Finding Bugs in Code
+
+SAST tools analyze source code without executing it, looking for patterns that match known vulnerability signatures.
+
+### How SAST Works
+
+Modern SAST tools operate in two modes:
+
+**Pattern matching**: Regex or AST-based rules that look for dangerous function calls:
+```
+# Semgrep rule: SQL string concatenation in Python
+pattern: |
+  $QUERY = "..." + $INPUT
+  ...
+  $DB.execute($QUERY)
+message: "Potential SQL injection: $QUERY built with string concatenation"
+```
+
+**Data-flow analysis (taint analysis)**: Tracks untrusted data (sources) through the codebase to dangerous operations (sinks), even across function boundaries:
+```
+source: request.args.get("id")    ← user-controlled
+  ↓ passed to function foo()
+  ↓ returned from foo()
+  ↓ interpolated into SQL string
+sink: db.execute("SELECT ... " + id)  ← dangerous operation
+```
+
+Taint analysis catches vulnerabilities that simple pattern matching misses — the injection might happen 5 function calls away from where the input was received.
+
+### SAST Tools
+
+| Tool | Language support | Strengths |
+|------|-----------------|-----------|
+| Semgrep | 30+ languages | Fast, custom rules, open-source rules registry |
+| CodeQL | Major languages | Deep semantic analysis, GitHub integration |
+| SonarQube | 30+ languages | Broad coverage, CI integration, free community edition |
+| Bandit | Python only | Simple, fast, good for Python-specific issues |
+
+```bash
+# Semgrep: run OWASP Top 10 rules against Python code
+semgrep --config=p/owasp-top-ten --lang=python ./src
+
+# CodeQL: query for SQL injection
+codeql database create mydb --language=python
+codeql query run security-queries/python/sql-injection.ql --database=mydb
+```
+
+<Callout variant="warning">
+**SAST false positive rate is high.** Expect 20-60% false positives from most SAST tools out of the box. Allocate time to tune rules for your codebase — every false positive that gets investigated is analyst time wasted, and an ignored finding list defeats the purpose.
+</Callout>
+
+## DAST: Testing the Running Application
+
+DAST tools interact with a running application the same way an attacker would: sending HTTP requests, fuzzing parameters, following redirects, and observing responses.
+
+### Active vs. Passive Scanning
+
+**Passive**: Proxy-based (OWASP ZAP, Burp Suite) sits between browser and server, recording all traffic. Analyzes requests/responses for security issues without modifying them. Safe for production.
+
+**Active**: Sends attack payloads to discovered endpoints. Finds injection vulnerabilities, authentication bypasses, path traversal. Generates significant load and may cause side effects — run only in dedicated test environments.
+
+```bash
+# OWASP ZAP: automated active scan against staging
+docker run -t owasp/zap2docker-stable zap-baseline.py \
+  -t https://staging.acme.com \
+  -r zap-report.html
+```
+
+### API Security Testing
+
+REST and GraphQL APIs require DAST tailored for structured endpoints:
+
+```bash
+# Nuclei: template-based vulnerability scanner
+nuclei -u https://api.acme.com -t nuclei-templates/
+
+# Dredd: tests API against its OpenAPI specification
+dredd api-spec.yaml https://api.acme.com
+```
+
+DAST for GraphQL should test for:
+- **Introspection enabled in production**: leaks the full schema
+- **Batch query abuse**: sends thousands of queries in one request to bypass rate limiting
+- **Unrestricted field traversal**: accessing nested relationships that should be blocked
+
+## Fuzzing: Finding What Rules Miss
+
+**Fuzzing** generates massive volumes of semi-random input and feeds it to a target, monitoring for crashes, hangs, or unexpected behavior. It finds vulnerabilities that neither pattern matching nor known-vulnerability scanning can detect.
+
+```python
+# Example: libFuzzer-style fuzzing target in Python
+import atheris
+import sys
+import json
+
+def TestOneInput(data):
+    fdp = atheris.FuzzedDataProvider(data)
+    try:
+        obj = json.loads(fdp.ConsumeUnicodeNoSurrogates(100))
+    except:
+        pass  # Exceptions are expected; crashes are not
+
+atheris.Setup(sys.argv, TestOneInput)
+atheris.Fuzz()
+```
+
+Modern fuzzers use **coverage-guided feedback**: they track which code paths each input triggers and mutate inputs that explore new branches. Over time they systematically explore the input space.
+
+## Secrets Scanning
+
+Secrets scanners look for high-entropy strings and patterns matching known credential formats in source code, git history, and container images.
+
+```bash
+# Gitleaks: scan git history
+gitleaks detect --source=. --report-format=json
+
+# Trufflehog: deep git history scan
+trufflehog git https://github.com/acme/repo.git
+
+# Pre-commit hook to block secrets before they're committed
+cat .pre-commit-config.yaml
+# repos:
+# - repo: https://github.com/gitleaks/gitleaks
+#   hooks:
+#   - id: gitleaks
+```
+
+<DepthBlock label="Building a secrets detection rule">
+
+Pattern-based detection for an API key format:
+```yaml
+# Semgrep rule: detect Stripe secret keys
+rules:
+- id: stripe-secret-key
+  patterns:
+  - pattern-regex: 'sk_live_[0-9a-zA-Z]{24}'
+  message: "Stripe live secret key detected — revoke immediately and rotate"
+  severity: ERROR
+  metadata:
+    cwe: CWE-798
+    owasp: "A07:2021 - Identification and Authentication Failures"
+```
+
+High-entropy string detection (language-agnostic):
+```python
+import math, re
+
+def entropy(s):
+    chars = set(s)
+    return -sum(s.count(c)/len(s) * math.log2(s.count(c)/len(s)) for c in chars)
+
+def is_suspicious(token):
+    # High entropy (>4.5 bits/char) + minimum length
+    return len(token) >= 20 and entropy(token) > 4.5
+```
+</DepthBlock>
+
+## Integrating Security Testing into SDLC
+
+The shift-left principle: find vulnerabilities as early as possible, when they're cheapest to fix.
+
+```
+Developer     →  Pre-commit         →  CI / PR         →  Staging         →  Production
+IDE linting      gitleaks hook          SAST (Semgrep)     DAST (ZAP)         WAF
+               secrets check         SCA (Trivy)        Penetration test   Runtime monitoring
+                                     Code review                           (GuardDuty, Falco)
+```
+
+| Stage | Tools | Action on finding |
+|-------|-------|-------------------|
+| Pre-commit | gitleaks, IDE plugins | Block commit |
+| PR/CI | SAST, SCA, lint | Block merge on critical/high |
+| Staging | DAST, manual pentest | Bug filed, tracked to fix |
+| Production | WAF, RASP, CSPM | Alert, incident response |
+
+## Penetration Testing vs. Automated Scanning
+
+Automated tools find known patterns reliably and at scale. They miss:
+- **Business logic vulnerabilities**: an automated scanner can't understand that a user should never be able to see another user's data — it has no concept of the intended behavior.
+- **Second-order vulnerabilities**: attacker stores payload in the database; payload is rendered in a different user's browser.
+- **Authentication abuse**: exploiting subtle flaws in session management, password reset flows, or MFA bypass.
+- **Chained exploits**: combining multiple low-severity findings to achieve high impact.
+
+Annual penetration tests by skilled humans complement automated scanning by finding vulnerabilities that require understanding context and intent.
+
+<Callout variant="insight">
+Security tooling is infrastructure, not a checkbox. SAST that no one reviews, DAST that never blocks deployments, and SCA findings that accumulate unactioned are theater. The value is in the process built around the tools: who triages findings, what severity blocks shipping, how exceptions are documented and tracked.
+</Callout>
+
+## Common Misconception
+
+**"We use a WAF, so our application doesn't need to be secure."** A Web Application Firewall is a detection and blocking layer — not a substitute for writing secure code. WAFs can be bypassed (encoding tricks, HTTP parameter pollution, protocol-level attacks). Vulnerabilities in business logic, authentication, and authorization are invisible to a WAF. Defense in depth requires security at every layer.

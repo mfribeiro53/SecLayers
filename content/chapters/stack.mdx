@@ -1,0 +1,185 @@
+# Memory Layout & Stack
+
+Understanding how memory is organized at runtime is the prerequisite for every systems security topic that follows. Buffer overflows, format string bugs, use-after-free, and most binary exploitation techniques all depend on a precise mental model of where data lives in memory and why.
+
+<Callout kind="insight">
+**The stack is just memory with a discipline.** A CPU register (`RSP` on x86-64) tracks the "top" of the stack, and two instructions (`PUSH` / `POP`) maintain it. The OS doesn't enforce this discipline — the program and compiler do. When an attacker violates it, the hardware happily executes whatever is now pointed to.
+</Callout>
+
+---
+
+## Process Memory Layout
+
+When the OS loads a program, it maps a virtual address space divided into regions. From high address to low:
+
+```
+High addresses
+┌─────────────────────┐
+│      Stack          │  ← grows downward (toward lower addresses)
+│         ↓           │
+│    (unmapped)       │
+│         ↑           │
+│       Heap          │  ← grows upward (toward higher addresses)
+├─────────────────────┤
+│    BSS segment      │  uninitialised global/static variables (zeroed)
+├─────────────────────┤
+│    Data segment     │  initialised global/static variables
+├─────────────────────┤
+│    Text segment     │  executable code (read-only on modern systems)
+└─────────────────────┘
+Low addresses
+```
+
+**Stack** — automatic storage for function locals, saved registers, and return addresses. Grows downward: each function call lowers `RSP`.
+
+**Heap** — dynamic storage. `malloc` / `new` allocate here; `free` / `delete` return it. Managed by the allocator, not the hardware.
+
+**BSS + Data** — global and static variables. BSS is zero-initialised; the Data segment holds pre-set values.
+
+**Text** — machine code. Mapped read-execute, not write, preventing trivial code injection.
+
+---
+
+## The Stack Frame
+
+Every function call allocates a **stack frame** — a contiguous block of memory on the stack that holds everything the function owns while it runs.
+
+A typical x86-64 frame (simplified) at function entry, after the prologue (`push rbp; mov rbp, rsp; sub rsp, N`):
+
+```
+Higher addresses (caller's territory)
+┌─────────────────────────────────────┐
+│         ...                         │
+│  Argument 7+  (pushed by caller)    │  ← only if >6 args on Linux x86-64
+│  Return address (saved by CALL)     │  ← address CPU jumps to after RET
+│  Saved RBP     (pushed by prologue) │  ← caller's frame pointer
+├─────────────────────────────────────┤  ← RBP points here
+│  Local variable N                   │
+│  Local variable N-1                 │
+│  ...                                │
+│  Local variable 1                   │
+├─────────────────────────────────────┤  ← RSP points here
+Lower addresses (current top of stack)
+```
+
+The **return address** is the critical value: when the function executes `RET`, the CPU pops it into `RIP` (the instruction pointer) and jumps there. **Anything that overwrites the return address controls where the CPU goes next.**
+
+---
+
+## Registers That Matter
+
+| Register | Role |
+|---|---|
+| `RIP` | Instruction Pointer — which instruction executes next |
+| `RSP` | Stack Pointer — current top of stack |
+| `RBP` | Base Pointer — base of current stack frame (optional in modern code) |
+| `RAX` | Accumulator — function return value |
+| `RDI/RSI/RDX/RCX/R8/R9` | First six integer arguments (Linux x86-64 calling convention) |
+
+`RIP` is the crown jewel. Every exploitation technique ultimately aims to control `RIP`.
+
+---
+
+## The Call/Return Sequence
+
+```
+Caller                          Stack after CALL
+─────────────────               ─────────────────────────
+CALL target_function  →         [return address]   ← RSP
+                                [caller's locals]
+                                ...
+```
+
+```
+Callee prologue                 Stack during callee
+────────────────────            ─────────────────────────
+PUSH RBP           →            [saved RBP]        ← RSP
+MOV RBP, RSP                    [return address]
+SUB RSP, N (locals)             [caller's locals]
+
+...function body...
+
+LEAVE  (= MOV RSP,RBP; POP RBP)
+RET    → pops return address into RIP
+```
+
+The pattern repeats for every nested call, building a **call stack** of frames. Debuggers show this as a backtrace.
+
+---
+
+## Calling Conventions
+
+Different platforms have different rules for how arguments are passed and who cleans the stack:
+
+| Convention | Platform | Args in registers | Stack cleanup |
+|---|---|---|---|
+| System V AMD64 ABI | Linux/macOS x86-64 | RDI, RSI, RDX, RCX, R8, R9 | Caller |
+| Microsoft x64 | Windows x86-64 | RCX, RDX, R8, R9 | Caller |
+| cdecl | 32-bit x86 | Stack (right to left) | Caller |
+| stdcall | Windows 32-bit | Stack (right to left) | Callee |
+
+Understanding the calling convention is essential for reading disassembly and writing shellcode that plays well with existing code.
+
+---
+
+## Why This Matters for Security
+
+1. **Return address overwrite** — buffer overflow on the stack can overwrite the saved return address, redirecting execution to attacker-controlled code.
+
+2. **Saved RBP overwrite** — overwriting the frame pointer can corrupt the caller's frame, enabling further exploitation.
+
+3. **Stack variable ordering** — the compiler lays out locals in a specific order. An overflow in one local may clobber an adjacent one before reaching the return address. Knowing the layout lets attackers compute exact offsets.
+
+4. **Stack-based canaries** — a randomised value placed between locals and the return address. Any linear overwrite must pass through the canary, which is checked before `RET`. Bypassing canaries requires either leaking the value or finding a non-linear write primitive.
+
+5. **Argument corruption** — in 32-bit code where arguments live on the stack, overflows can tamper with arguments passed to the next function.
+
+---
+
+## Reading Disassembly: A Worked Example
+
+```c
+// Source
+void greet(char *name) {
+    char buf[64];
+    strcpy(buf, name);
+    printf("Hello, %s\n", buf);
+}
+```
+
+Compiled (x86-64, no optimisation):
+
+```asm
+greet:
+    push   rbp
+    mov    rbp, rsp
+    sub    rsp, 0x50         ; reserve 80 bytes (64 + alignment)
+    mov    QWORD PTR [rbp-0x50], rdi  ; store 'name' arg
+    lea    rax, [rbp-0x40]  ; buf is at rbp-0x40
+    mov    rsi, QWORD PTR [rbp-0x50]
+    mov    rdi, rax
+    call   strcpy            ; copies name → buf with no bounds check
+    ...
+```
+
+`buf` is 64 bytes, starting at `rbp-0x40`. The return address is at `rbp+8`. Distance: `0x40 + 8 = 72` bytes. Any input longer than 72 bytes overwrites the return address. This is the mechanical core of a stack buffer overflow.
+
+---
+
+## Heap vs Stack: Choosing the Right Target
+
+| Property | Stack | Heap |
+|---|---|---|
+| Lifetime | Function scope | Manual (`malloc`/`free`) |
+| Layout | Predictable (compiler-determined) | Allocator-determined, fragmented |
+| Control-flow target | Return address (easy) | Function pointers, vtable pointers |
+| Key bugs | Stack overflows, format strings | Use-after-free, heap overflows |
+| Primary defense | Stack canaries, shadow stacks | Safe allocators, ASAN |
+
+---
+
+## Misconception
+
+**Myth:** "Stack memory is automatically safe because it's managed by the compiler."
+
+**Reality:** The compiler manages stack *layout* but not *bounds*. It allocates a buffer at a fixed offset from `RSP` — it does not insert bounds checks on array accesses. The programmer (or library) is responsible for ensuring writes stay within allocated bounds. A `strcpy` into a stack buffer has no idea how large the buffer is; it copies until it hits a null byte, overwriting whatever comes after.

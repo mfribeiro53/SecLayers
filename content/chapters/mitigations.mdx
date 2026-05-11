@@ -1,0 +1,163 @@
+# Mitigations: ASLR, NX, and Stack Canaries
+
+Modern operating systems and compilers ship with multiple layers of binary exploitation mitigations. None of them eliminate vulnerabilities — that requires fixing the code. What they do is raise the bar for turning a vulnerability into reliable code execution, forcing attackers to chain multiple primitives and often requiring a separate information-leak bug before exploitation becomes feasible.
+
+<Callout kind="info">
+**Mitigations are not prevention.** Every mitigation described here has known bypass techniques. Their value is making exploitation harder, slower, and less reliable — not making it impossible. Defense-in-depth means layering mitigations so that bypassing one still leaves others in place.
+</Callout>
+
+---
+
+## Stack Canaries
+
+### How They Work
+
+The compiler inserts a secret random value (the **canary**) between local variables and the return address in every function's stack frame. Before executing `RET`, the function checks that the canary still matches its initial value. If not, the process aborts.
+
+```
+Stack frame with canary:
+┌─────────────────────────┐
+│  Return address         │  ← ultimate target
+│  Saved RBP              │
+│  Canary value (8 bytes) │  ← checked before RET
+│  Local variables        │
+└─────────────────────────┘
+```
+
+GCC inserts this with `-fstack-protector` (leaf functions only) or `-fstack-protector-strong` (more comprehensive) or `-fstack-protector-all` (all functions).
+
+### Properties
+
+- On Linux (glibc), the canary's low byte is always `\x00` — this null byte terminates any string-based overwrite early. The upper bytes are random per-process (or per-thread with thread-local storage).
+- The canary value is stored in `fs:0x28` (x86-64 Linux), a thread-local segment register. Reading it requires a segment register access — not accessible via normal pointer arithmetic.
+
+### Bypasses
+
+| Bypass | Mechanism | Counter |
+|---|---|---|
+| Info-leak (format string, OOB read) | Read canary value from stack, replay it | Eliminate the info-leak source |
+| Brute force (fork server) | Child inherits canary; byte-by-byte guess (256 tries per byte) | Re-exec on fork; use 64-bit canaries |
+| Non-linear write | Write directly to return address, skip canary bytes | Shadow stack / Intel CET |
+| Overwrite non-return-address targets | Function pointers, GOT entries — canary not checked | Full RELRO, PIE, CFI |
+
+---
+
+## NX (Non-eXecutable) / DEP / W^X
+
+### How It Works
+
+Modern CPUs expose a per-page **NX bit** (No-Execute) in the page table. When set, any attempt to execute instructions from that page raises a fault. The OS marks:
+- **Stack pages**: NX (data, not code)
+- **Heap pages**: NX
+- **Text pages**: executable, not writable
+
+The invariant **W^X** (Writable XOR eXecutable) means no page should be simultaneously writable and executable. Any page the attacker can write to cannot be executed; any executable page cannot be written.
+
+### Effect on Shellcode
+
+Without NX, an attacker could push shellcode onto the stack and jump to it. NX makes this fault immediately. The response was **return-to-libc** and **ROP**, which reuse existing executable code rather than injecting new code.
+
+### Limitations
+
+- **JIT compilation** inherently requires W+X pages (write machine code, then execute it). Browsers use a JIT-permission toggle (`mprotect`) to narrow the window: write, then mark NX, then execute. Attacks on JIT spraying exploit this window.
+- **`mprotect(PROT_EXEC)`**: A process can call `mprotect` to mark a heap page executable. Sandbox restrictions (seccomp) that block `mprotect` + `PROT_EXEC` close this hole.
+- **JIT + UAF**: If an attacker can corrupt a JIT-compiled code buffer before it's marked NX, they inject shellcode without violating W^X in steady state.
+
+---
+
+## ASLR (Address Space Layout Randomisation)
+
+### How It Works
+
+The OS randomises the load addresses of:
+- **Stack** — random offset applied per process
+- **Heap** — `mmap` base randomised
+- **Shared libraries (libc etc.)** — random base
+- **Program itself** — requires PIE (Position-Independent Executable)
+
+Without ASLR, `system()` in libc is always at the same address. An attacker can hardcode it in their payload. With ASLR, libc loads at a different base each run — the absolute address is unknown until an info-leak reveals it.
+
+### Entropy
+
+| Region | Bits of entropy (x86-64 Linux) |
+|---|---|
+| Stack | 28 bits |
+| mmap (libraries) | 28 bits |
+| Heap | 13 bits |
+| PIE text | 28 bits |
+
+28 bits of entropy = 268 million possible base addresses. Brute force is infeasible in one shot — but the heap's 13 bits (~8192 possible bases) has historically been weak enough for repeated-crash spraying in some contexts.
+
+### Bypasses
+
+| Bypass | Condition |
+|---|---|
+| Info-leak (read a pointer) | Any OOB read, format string, dangling pointer — leaks an address that reveals the randomised base |
+| Partial overwrite | Overwrite only the low bytes of a saved pointer; the high bytes remain correct, effectively guessing fewer bits |
+| Brute force (32-bit) | 16 bits of entropy in 32-bit ASLR — 65536 guesses, feasible against forking servers |
+| Heap spray | Fill vast amounts of heap with shellcode; statistically likely to jump into it (less effective with NX + 64-bit ASLR) |
+| JIT spray | Spray JIT-compiled pages containing embedded shellcode disguised as immediates |
+
+### PIE Requirement
+
+ASLR on the program's own text segment only works if the binary is compiled as a **position-independent executable** (PIE). Non-PIE binaries load at a fixed address (`0x400000` on Linux), giving attackers reliable gadget addresses regardless of ASLR. Always compile production binaries with `-fPIE -pie`.
+
+---
+
+## RELRO (Relocation Read-Only)
+
+The **Global Offset Table (GOT)** is a data table used for dynamic linking. On first call to a library function, the dynamic linker patches the GOT with the resolved address (**lazy binding**). Attackers target the GOT because overwriting a GOT entry redirects the next call to that function.
+
+**Partial RELRO** (`-Wl,-z,relro`): Marks some sections (not the GOT itself) read-only after startup.
+
+**Full RELRO** (`-Wl,-z,relro,-z,now`): Forces eager binding at startup (resolves all symbols before marking the GOT read-only). The GOT becomes a read-only page after startup — any write to it faults.
+
+Full RELRO eliminates GOT overwrites entirely. Its cost: slightly longer startup time (all symbols resolved upfront). For production security-sensitive binaries, always use full RELRO.
+
+---
+
+## Control Flow Integrity (CFI)
+
+CFI is a class of mitigations that restrict where indirect calls and returns can go. Even with all of ASLR + NX + RELRO + canary, a use-after-free that corrupts a vtable pointer can redirect a virtual function call. CFI counters this:
+
+**Forward-edge CFI** — indirect calls (`call [rax]`) can only target addresses in a compiler-generated set of valid targets.
+
+**Backward-edge CFI** — returns (`RET`) can only target valid return sites. Intel CET's shadow stack is the hardware implementation.
+
+- **Clang CFI** (`-fsanitize=cfi`): Forward-edge CFI for virtual dispatch, function pointer calls. ~1% overhead.
+- **Microsoft Control Flow Guard (CFG)**: Forward-edge CFI on Windows, hardware-enforced.
+- **Intel CET / IBT**: Hardware-enforced forward-edge (ENDBR instruction at valid targets) and backward-edge (shadow stack) CFI.
+
+CFI eliminates whole categories of ROP and vtable corruption. Modern Chrome ships with CFI on all platforms.
+
+---
+
+## The Mitigation Stack in Practice
+
+A fully hardened binary on Linux:
+
+```
+gcc -O2 \
+    -fPIE -pie \                    # PIE for ASLR on text
+    -fstack-protector-strong \      # Stack canary
+    -D_FORTIFY_SOURCE=2 \           # Fortified libc functions
+    -Wl,-z,relro,-z,now \           # Full RELRO
+    -fsanitize=cfi \                # CFI (clang)
+    -fcf-protection=full \          # Intel CET (IBT + shadow stack)
+    -o program program.c
+```
+
+Plus OS-level:
+- ASLR enabled (`/proc/sys/kernel/randomize_va_space = 2`)
+- Seccomp-BPF to restrict syscalls available post-exploitation
+- Sandboxing (namespaces, capabilities)
+
+No single mitigation is sufficient. The goal is that bypassing any one still leaves the attacker blocked by others.
+
+---
+
+## Misconception
+
+**Myth:** "If a program is compiled with stack canaries and ASLR is on, stack overflow exploitation is no longer possible."
+
+**Reality:** Canaries protect only the stack return address from linear overflows; they don't protect heap objects, GOT entries, vtable pointers, or function pointers in global/static memory. ASLR is defeated by any info-leak — and format string bugs, OOB reads, and dangling pointers all provide info-leaks that reveal the randomised base. A realistic attack against a canary + ASLR target: (1) exploit a format string to leak the canary and a libc address; (2) use a second write (or the same format string's %n) to overwrite the return address with a ROP chain pointing to system("/bin/sh"). The mitigations raised the bar from one bug to two bugs — meaningful, but not a guarantee.

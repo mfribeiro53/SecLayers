@@ -1,0 +1,229 @@
+# IaC Security
+
+Infrastructure as Code (IaC) — Terraform, AWS CloudFormation, Pulumi, Ansible — defines cloud infrastructure in version-controlled files. This makes infrastructure auditable, reproducible, and reviewable. It also means a single misconfiguration, once committed, gets **deployed at scale** across every environment that runs the template.
+
+<Callout kind="insight">
+**Shift left**: Catching a misconfigured security group in a PR review costs nothing. Catching it after a breach costs millions. IaC security scanning integrates security review into the development workflow before anything reaches production.
+</Callout>
+
+---
+
+## Why IaC Security Matters
+
+Before IaC, infrastructure was configured manually. Misconfigurations were one-offs. With IaC:
+
+- A misconfigured S3 bucket template deploys to **every environment** using that module
+- A wildcard IAM policy in a shared module grants excessive permissions to every service that includes it
+- An open security group (`0.0.0.0/0` on port 22) in a base template exposes every instance in production
+
+The blast radius of an IaC mistake scales with how widely the configuration is reused.
+
+---
+
+## Common Terraform Misconfigurations
+
+### Open Security Groups
+
+```hcl
+# Dangerous: all ports open to the internet
+resource "aws_security_group_rule" "allow_all" {
+  type        = "ingress"
+  from_port   = 0
+  to_port     = 65535
+  protocol    = "tcp"
+  cidr_blocks = ["0.0.0.0/0"]
+}
+
+# Safe: only expose what's needed, restrict to known CIDRs
+resource "aws_security_group_rule" "allow_https" {
+  type        = "ingress"
+  from_port   = 443
+  to_port     = 443
+  protocol    = "tcp"
+  cidr_blocks = ["10.0.0.0/8"]  # private network only
+}
+```
+
+### S3 Without Encryption or Versioning
+
+```hcl
+# Missing: encryption, versioning, public access block
+resource "aws_s3_bucket" "data" {
+  bucket = "company-data"
+}
+
+# Complete secure configuration
+resource "aws_s3_bucket" "data" {
+  bucket = "company-data"
+}
+
+resource "aws_s3_bucket_public_access_block" "data" {
+  bucket                  = aws_s3_bucket.data.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "data" {
+  bucket = aws_s3_bucket.data.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "aws:kms"
+    }
+  }
+}
+
+resource "aws_s3_bucket_versioning" "data" {
+  bucket = aws_s3_bucket.data.id
+  versioning_configuration { status = "Enabled" }
+}
+```
+
+### Overly Permissive IAM
+
+```hcl
+# Grants full AWS access — effectively AdministratorAccess
+resource "aws_iam_policy" "app" {
+  policy = jsonencode({
+    Statement = [{ Effect = "Allow", Action = ["*"], Resource = ["*"] }]
+  })
+}
+
+# Scoped to only what the application needs
+resource "aws_iam_policy" "app" {
+  policy = jsonencode({
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["s3:GetObject", "sqs:ReceiveMessage", "sqs:DeleteMessage"]
+      Resource = [
+        "arn:aws:s3:::app-data/*",
+        aws_sqs_queue.tasks.arn,
+      ]
+    }]
+  })
+}
+```
+
+### Missing Logging
+
+```hcl
+# Always enable CloudTrail
+resource "aws_cloudtrail" "main" {
+  name                          = "main-trail"
+  s3_bucket_name                = aws_s3_bucket.cloudtrail.id
+  include_global_service_events = true
+  is_multi_region_trail         = true
+  enable_log_file_validation    = true
+}
+```
+
+---
+
+## Terraform State File Security
+
+Terraform maintains a state file (`terraform.tfstate`) that maps resources to their current real-world configuration. **State files contain secrets in plaintext**:
+
+- RDS master passwords
+- IAM access key secrets
+- TLS private key material
+- Any `sensitive = true` outputs (still stored in plaintext in state)
+
+```json
+// terraform.tfstate (excerpt) — contains real values
+{
+  "resources": [{
+    "type": "aws_db_instance",
+    "instances": [{
+      "attributes": {
+        "password": "actual_production_password_here"
+      }
+    }]
+  }]
+}
+```
+
+**Never commit state files to git.** Use remote state backends with encryption and access control:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket         = "company-terraform-state"
+    key            = "prod/terraform.tfstate"
+    region         = "us-east-1"
+    encrypt        = true
+    kms_key_id     = "arn:aws:kms:us-east-1:123456789:key/..."
+    dynamodb_table = "terraform-state-lock"
+  }
+}
+```
+
+---
+
+## Scanning Tools
+
+| Tool | Language support | Notes |
+|---|---|---|
+| **tfsec** | Terraform | Fast, opinionated; 150+ built-in rules; custom rules via YAML |
+| **Checkov** | Terraform, CF, K8s, Dockerfile, ARM | Python-based; integrates with many CI systems |
+| **KICS** | Multi-IaC | Open-source; 2000+ queries across all major IaC formats |
+| **Terrascan** | Terraform, K8s, Helm, Docker | Policy engine with OPA integration |
+| **Trivy** | Terraform, K8s, Dockerfile | Multi-purpose scanner; IaC scanning as one feature |
+
+```bash
+# Example: run tfsec on a Terraform directory
+tfsec ./infrastructure --format sarif --out results.sarif
+
+# Example: Checkov scan
+checkov -d ./infrastructure --framework terraform --output github_failed_only
+```
+
+---
+
+## Policy as Code
+
+Policy as code enforces security rules on IaC before deployment. If a resource violates policy, the deployment fails.
+
+**OPA/Conftest**: Write policies in Rego to evaluate Terraform plans.
+
+```rego
+# Deny security groups open to the world
+deny[msg] {
+  r := input.resource_changes[_]
+  r.type == "aws_security_group_rule"
+  r.change.after.cidr_blocks[_] == "0.0.0.0/0"
+  r.change.after.from_port == 0
+  msg := sprintf("Security group %v is open to 0.0.0.0/0 on all ports", [r.address])
+}
+```
+
+**Sentinel** (HashiCorp): Policy language built into Terraform Cloud/Enterprise. Can block runs that don't meet policy requirements.
+
+---
+
+## CI/CD Integration
+
+```yaml
+# GitHub Actions: scan Terraform on every PR
+- name: Run tfsec
+  uses: aquasecurity/tfsec-action@v1.0.0
+  with:
+    soft_fail: false  # fail the build on findings
+
+- name: Run Checkov
+  uses: bridgecrewio/checkov-action@master
+  with:
+    directory: infrastructure/
+    framework: terraform
+    soft_fail: false
+```
+
+The pipeline fails on new high-severity findings, blocking the merge. Low-severity findings are reported but don't block merges — tuned to reduce alert fatigue while keeping critical issues gated.
+
+---
+
+## Misconception
+
+**Myth:** "IaC is more secure than manual configuration because everything is reviewed in a PR."
+
+**Reality:** PR review catches what reviewers know to look for. Security misconfigurations are subtle — an unversioned S3 bucket or a missing `encrypt = true` on a state backend looks like correct code to a developer unfamiliar with the risk. Automated scanners catch known misconfigurations reliably; human reviewers catch intent and logic issues. Both are needed. Neither alone is sufficient.

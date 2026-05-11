@@ -1,0 +1,191 @@
+# Container Security
+
+Containers provide process isolation — not virtual machine isolation. Understanding what a container does and does not protect against determines where the security boundary actually sits.
+
+<Callout kind="info">
+**The container boundary is a kernel boundary.** Containers share the host OS kernel. A kernel exploit, a misconfiguration that grants excessive privileges, or a mounted host filesystem can break out of the container entirely. A VM breach, by contrast, must also escape the hypervisor.
+</Callout>
+
+---
+
+## What Containers Isolate
+
+Containers use Linux kernel namespaces and cgroups to create the appearance of isolation:
+
+| Namespace | What it isolates |
+|---|---|
+| `pid` | Process IDs — processes in the container can't see host PIDs |
+| `net` | Network interfaces, routing tables, iptables rules |
+| `mnt` | Mount points — container sees its own filesystem tree |
+| `uts` | Hostname and domain name |
+| `ipc` | Inter-process communication (SysV, POSIX message queues) |
+| `user` | UID/GID mappings (user namespaces) |
+
+**cgroups** enforce resource limits: CPU, memory, I/O. They prevent a container from starving the host but provide no security isolation.
+
+### What Containers Do NOT Isolate
+
+- **The kernel itself** — syscalls go directly to the host kernel. A kernel vulnerability exploitable from a container is a host privilege escalation.
+- **Privileged containers** — bypass most namespace isolation and can access host devices.
+- **Shared host volumes** — a mounted host directory is directly accessible; there is no copy-on-write.
+- **The Docker daemon socket** — if `/var/run/docker.sock` is mounted into a container, the container has root over the host.
+
+---
+
+## Privileged Containers
+
+A privileged container runs with `--privileged` (or `securityContext.privileged: true` in K8s). It:
+
+- Has access to all host devices (`/dev`)
+- Can modify kernel parameters via `/proc/sys`
+- Bypasses seccomp and AppArmor profiles
+- Can load kernel modules
+
+```bash
+# Escape from privileged container via mount:
+mount /dev/sda1 /mnt       # mount host root disk
+chroot /mnt                # chroot into host
+cat /etc/shadow            # read host shadow file
+```
+
+Never run containers as privileged unless absolutely required (and audit those that are).
+
+---
+
+## Dockerfile Security
+
+The Dockerfile defines the image — and every insecure instruction is baked into every container that runs from it.
+
+### Running as Root
+
+By default, Docker containers run as root (UID 0). An RCE in the application becomes root inside the container. On misconfigured hosts, root in the container is root on the host.
+
+```dockerfile
+# Vulnerable: runs as root
+FROM node:20
+COPY . /app
+CMD ["node", "app.js"]
+
+# Fixed: add a non-root user
+FROM node:20-slim
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN addgroup --system app && adduser --system --group app
+USER app
+CMD ["node", "app.js"]
+```
+
+### Secrets in Image Layers
+
+Every `RUN`, `COPY`, and `ADD` instruction creates an image layer. Secrets added in one layer are visible via `docker history` even if "deleted" in a subsequent layer.
+
+```dockerfile
+# WRONG: secret baked into layer
+RUN echo "my_api_key=secret123" > /app/config
+RUN rm /app/config  # too late — it's in the previous layer
+
+# WRONG: ARG visible in build history
+ARG GITHUB_TOKEN
+RUN git clone https://${GITHUB_TOKEN}@github.com/private/repo .
+
+# RIGHT: use BuildKit secret mounts (not stored in any layer)
+RUN --mount=type=secret,id=github_token \
+    git clone https://$(cat /run/secrets/github_token)@github.com/private/repo .
+```
+
+### ADD vs COPY
+
+`ADD` can fetch URLs and unpack tarballs — unexpected behaviour that can introduce files or bypass filename checks. Use `COPY` for local files unless you specifically need `ADD`'s features.
+
+### Base Image Selection
+
+```dockerfile
+# Risk: ubuntu:latest changes without notice; contains many unused packages
+FROM ubuntu:latest
+
+# Better: specific version, minimal surface area
+FROM python:3.12-slim
+
+# Best (for statically compiled apps): no shell, no package manager, no OS
+FROM gcr.io/distroless/static-debian12
+```
+
+---
+
+## Container Escape Techniques
+
+### Docker Socket Mount
+
+```bash
+# If /var/run/docker.sock is mounted in the container:
+docker run -v /:/host -it ubuntu chroot /host /bin/bash
+# Now running as root on the host filesystem
+```
+
+An application that can reach the Docker socket can start any container with any mounts — effectively owning the host.
+
+### Host PID Namespace
+
+```bash
+docker run --pid=host alpine
+# Can now see and signal all host processes
+# nsenter allows joining any process's namespaces:
+nsenter --target <host-pid> --mount --uts --ipc --net --pid /bin/sh
+```
+
+### Privileged + /dev Access
+
+```bash
+# Find host root disk
+ls /dev/sd*
+# Mount it
+mkdir /mnt/host && mount /dev/sda1 /mnt/host
+# Write SSH key
+echo "attacker_pubkey" >> /mnt/host/root/.ssh/authorized_keys
+```
+
+---
+
+## Runtime Security Controls
+
+| Control | What it restricts | How |
+|---|---|---|
+| **seccomp** | Syscalls available to the container | Default Docker profile blocks ~44 dangerous syscalls |
+| **AppArmor / SELinux** | File access, capabilities, network | LSM profiles applied per container |
+| **capabilities** | Fine-grained root privileges | Drop all, add only needed: `--cap-drop ALL --cap-add NET_BIND_SERVICE` |
+| **read-only filesystem** | Writes to container filesystem | `--read-only`; mount tmpfs for writable dirs |
+| **no-new-privileges** | Prevents setuid binaries from escalating | `--security-opt no-new-privileges:true` |
+
+### Minimal Capability Example
+
+```yaml
+# Kubernetes securityContext
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+    add: ["NET_BIND_SERVICE"]
+```
+
+---
+
+## Image Supply Chain
+
+**Vulnerability scanning**: Images inherit all CVEs in their base image and installed packages. Scan images in CI before pushing to production: Trivy, Grype, Snyk Container.
+
+**Image signing**: Use Sigstore/Cosign or Docker Content Trust to sign images and verify signatures before deployment. Prevents tampered images from being deployed.
+
+**Private registries**: Pull base images from a vetted internal mirror, not directly from Docker Hub, to prevent dependency confusion and supply chain attacks.
+
+---
+
+## Misconception
+
+**Myth:** "Containers are isolated — if an attacker compromises the container they're stuck inside."
+
+**Reality:** Container isolation depends entirely on configuration. A container running as root with a mounted Docker socket, host volumes, or in privileged mode provides no meaningful security boundary. Even a default container can be escaped via a kernel vulnerability. Defense requires: running as non-root, dropping capabilities, using seccomp/AppArmor, avoiding dangerous mounts, and ensuring the base image has minimal CVE exposure.
