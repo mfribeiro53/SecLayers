@@ -43,7 +43,7 @@ export function GlossaryPanel() {
   }, [glossaryOpen, setGlossaryOpen]);
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return entries.sort((a, b) => a.term.localeCompare(b.term));
+    if (!search.trim()) return [...entries].sort((a, b) => a.term.localeCompare(b.term));
     const q = search.toLowerCase();
     return entries
       .filter(

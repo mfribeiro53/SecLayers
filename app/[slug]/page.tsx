@@ -1,71 +1,22 @@
 import fs from "fs";
 import path from "path";
 import { MDXRemote } from "next-mdx-remote/rsc";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
+import rehypeHighlight from "rehype-highlight";
 import { getAdjacentTopics, TOPICS } from "@/lib/topics";
 import { ChapterShell } from "@/components/layout/ChapterShell";
+import { ToolRenderer } from "@/components/ui/ToolRenderer";
 import { notFound } from "next/navigation";
 import type { InterviewQuestion } from "@/types";
-
-// ── Tool registry ──────────────────────────────────────────
-import SQLiSandboxTool from "@/components/tools/SQLiSandboxTool";
-import DOMXSSVisualizerTool from "@/components/tools/DOMXSSVisualizerTool";
-import DfdBuilderTool from "@/components/tools/DfdBuilderTool";
-import CryptoPlaygroundTool from "@/components/tools/CryptoPlaygroundTool";
-import EncodingSandboxTool from "@/components/tools/EncodingSandboxTool";
-import SdlcTimelineTool from "@/components/tools/SdlcTimelineTool";
-import CsrfSimulatorTool from "@/components/tools/CsrfSimulatorTool";
-import JWTEditorTool from "@/components/tools/JWTEditorTool";
-import IdorExplorerTool from "@/components/tools/IdorExplorerTool";
-import SsrfVisualizerTool from "@/components/tools/SsrfVisualizerTool";
-import HeaderGraderTool from "@/components/tools/HeaderGraderTool";
-import CSPSandboxTool from "@/components/tools/CSPSandboxTool";
-import DefensiveCodeLabTool from "@/components/tools/DefensiveCodeLabTool";
-import OAuthFlowAnimatorTool from "@/components/tools/OAuthFlowAnimatorTool";
-import GraphQLExplorerTool from "@/components/tools/GraphQLExplorerTool";
-import JWTAnatomyTool from "@/components/tools/JWTAnatomyTool";
-import RateLimiterTool from "@/components/tools/RateLimiterTool";
-import ApiDiffTool from "@/components/tools/ApiDiffTool";
-import MobileFSExplorerTool from "@/components/tools/MobileFSExplorerTool";
-import TLSVisualizerTool from "@/components/tools/TLSVisualizerTool";
-import APKExplorerTool from "@/components/tools/APKExplorerTool";
-import AuthBypassTreeTool from "@/components/tools/AuthBypassTreeTool";
-import IntentRouterTool from "@/components/tools/IntentRouterTool";
-import StackFrameTool from "@/components/tools/StackFrameTool";
-import OverflowAnimatorTool from "@/components/tools/OverflowAnimatorTool";
-import PrintfSimulatorTool from "@/components/tools/PrintfSimulatorTool";
-import HeapVisualizerTool from "@/components/tools/HeapVisualizerTool";
-import MitigationToggleTool from "@/components/tools/MitigationToggleTool";
-import ThreadTimelineTool from "@/components/tools/ThreadTimelineTool";
-import IAMPolicySimulatorTool from "@/components/tools/IAMPolicySimulatorTool";
-import BucketACLTool from "@/components/tools/BucketACLTool";
-import DockerfileLinterTool from "@/components/tools/DockerfileLinterTool";
-import K8sRBACBuilderTool from "@/components/tools/K8sRBACBuilderTool";
-import SecretSprawlTool from "@/components/tools/SecretSprawlTool";
-import TerraformScannerTool from "@/components/tools/TerraformScannerTool";
-import LogInjectorTool from "@/components/tools/LogInjectorTool";
-import DepResolverTool from "@/components/tools/DepResolverTool";
-import SBOMExplorerTool from "@/components/tools/SBOMExplorerTool";
-import PipelineDAGTool from "@/components/tools/PipelineDAGTool";
-import ProvenanceChainTool from "@/components/tools/ProvenanceChainTool";
-import SASTRuleBuilderTool from "@/components/tools/SASTRuleBuilderTool";
 import { Callout } from "@/components/ui/Callout";
 import { DepthBlock } from "@/components/ui/DepthBlock";
 import { CodeBlock } from "@/components/ui/CodeBlock";
 
-const TOOL_MAP: Record<string, React.ComponentType> = {
-  SQLiSandboxTool, DOMXSSVisualizerTool, DfdBuilderTool,
-  CryptoPlaygroundTool, EncodingSandboxTool, SdlcTimelineTool,
-  CsrfSimulatorTool, JWTEditorTool, IdorExplorerTool,
-  SsrfVisualizerTool, HeaderGraderTool, CSPSandboxTool,
-  DefensiveCodeLabTool, OAuthFlowAnimatorTool, GraphQLExplorerTool,
-  JWTAnatomyTool, RateLimiterTool, ApiDiffTool,
-  MobileFSExplorerTool, TLSVisualizerTool, APKExplorerTool,
-  AuthBypassTreeTool, IntentRouterTool,
-  StackFrameTool, OverflowAnimatorTool, PrintfSimulatorTool,
-  HeapVisualizerTool, MitigationToggleTool, ThreadTimelineTool,
-  IAMPolicySimulatorTool, BucketACLTool, DockerfileLinterTool,
-  K8sRBACBuilderTool, SecretSprawlTool, TerraformScannerTool, LogInjectorTool,
-  DepResolverTool, SBOMExplorerTool, PipelineDAGTool, ProvenanceChainTool, SASTRuleBuilderTool,
+const MDX_OPTIONS = {
+  remarkPlugins: [remarkGfm, remarkMath],
+  rehypePlugins: [rehypeKatex, rehypeHighlight],
 };
 
 export function generateStaticParams() {
@@ -98,10 +49,26 @@ export default async function ChapterPage({ params }: { params: { slug: string }
   if (!adjacent) notFound();
   const { current, prev, next } = adjacent;
   const { source, hasMdx, misconception, interviewQuestions } = await loadChapterData(params.slug);
-  const ToolComponent = TOOL_MAP[current.toolComponent] ?? null;
   return (
-    <ChapterShell topic={current} tool={ToolComponent ? <ToolComponent /> : <div className="flex items-center justify-center h-32 text-slate-400 italic border-2 border-dashed border-slate-200 rounded-lg">Interactive tool for &ldquo;{current.title}&rdquo; &mdash; coming soon.</div>} misconception={misconception} interviewQuestions={interviewQuestions} prevTopic={prev} nextTopic={next}>
-      {hasMdx ? <MDXRemote source={source} components={{ Callout, DepthBlock, CodeBlock }} /> : <div className="space-y-4"><p className="text-lg leading-relaxed"><strong>{current.title}</strong> &mdash; Chapter {current.num} of SecLayers, part of {current.actLabel}.</p><p className="text-slate-600">Full chapter content is being written in MDX. Check back soon.</p></div>}
+    <ChapterShell
+      topic={current}
+      tool={<ToolRenderer toolComponent={current.toolComponent} />}
+      misconception={misconception}
+      interviewQuestions={interviewQuestions}
+      prevTopic={prev}
+      nextTopic={next}
+    >
+      {hasMdx
+        ? <MDXRemote source={source} options={{ mdxOptions: MDX_OPTIONS }} components={{ Callout, DepthBlock, CodeBlock }} />
+        : (
+          <div className="space-y-4">
+            <p className="text-lg leading-relaxed">
+              <strong>{current.title}</strong> &mdash; Chapter {current.num} of SecLayers, part of {current.actLabel}.
+            </p>
+            <p className="text-slate-600">Full chapter content is being written in MDX. Check back soon.</p>
+          </div>
+        )
+      }
     </ChapterShell>
   );
 }

@@ -170,7 +170,7 @@ export function ChapterShell({
                   color: "#34d399",
                 }
               : {
-                  background: actBg.replace("bg-", "rgba(").replace("/30", ",0.15)") ?? "var(--bg-elevated)",
+                  background: "var(--bg-elevated)",
                   border: `1px solid var(--border-subtle)`,
                   color: "var(--text-secondary)",
                   cursor: "pointer",
