@@ -40,7 +40,7 @@ export const TOOL_META: Record<string, ToolMeta> = {
   SQLiSandboxTool: {
     summary: "Run live SQL injection attacks against a vulnerable login form, then flip to parameterized queries and watch them fail safely.",
     quickStart: [
-      "Enter ' OR '1'='1 as the username and observe the bypass",
+      "Enter ' OR '1'='1 as the username — the leading ' closes the SQL string, letting you inject logic after it",
       "Try a UNION attack to extract hidden data",
       "Toggle 'Safe mode' and repeat — parameterized queries block every payload",
     ],

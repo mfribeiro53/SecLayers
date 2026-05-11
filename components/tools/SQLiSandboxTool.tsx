@@ -329,15 +329,25 @@ export default function SQLiSandboxTool() {
             <p className="text-sm font-medium text-slate-600 mb-1">
               Constructed SQL
             </p>
-            <pre
-              className={`p-3 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap ${
-                mode === "vulnerable"
-                  ? "bg-red-50 text-red-800 border border-red-200"
-                  : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-              }`}
-            >
-              {constructedQuery}
-            </pre>
+            {mode === "vulnerable" ? (
+              <>
+                <pre className="p-3 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap bg-red-50 border border-red-200">
+                  <span className="text-red-800 opacity-60">{"SELECT id, username, role FROM users WHERE username = '"}</span>
+                  <span className="bg-orange-200 text-orange-900 rounded px-0.5">{username || " "}</span>
+                  <span className="text-red-800 opacity-60">{"' AND password = '"}</span>
+                  <span className="bg-orange-200 text-orange-900 rounded px-0.5">{password || " "}</span>
+                  <span className="text-red-800 opacity-60">{"'"}</span>
+                </pre>
+                <p className="mt-1 text-xs text-slate-500">
+                  <span className="inline-block w-3 h-3 bg-orange-200 border border-orange-300 rounded align-middle mr-1" />
+                  Highlighted = your input. The query wraps it in <code className="font-mono">&#39;</code> — a leading <code className="font-mono">&#39;</code> in your input closes that quote and lets you inject SQL.
+                </p>
+              </>
+            ) : (
+              <pre className="p-3 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap bg-emerald-50 text-emerald-800 border border-emerald-200">
+                {constructedQuery}
+              </pre>
+            )}
           </div>
         )}
 
