@@ -7,7 +7,6 @@ import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
 import { getAdjacentTopics, TOPICS } from "@/lib/topics";
 import { ChapterShell } from "@/components/layout/ChapterShell";
-import { ToolRenderer } from "@/components/ui/ToolRenderer";
 import { notFound } from "next/navigation";
 import type { InterviewQuestion } from "@/types";
 import { Callout } from "@/components/ui/Callout";
@@ -52,7 +51,6 @@ export default async function ChapterPage({ params }: { params: { slug: string }
   return (
     <ChapterShell
       topic={current}
-      tool={<ToolRenderer toolComponent={current.toolComponent} />}
       misconception={misconception}
       interviewQuestions={interviewQuestions}
       prevTopic={prev}

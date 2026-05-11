@@ -1,13 +1,12 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getTopicBySlug, TOPICS } from "@/lib/topics";
-import { TOOL_KEYS } from "@/lib/tool-map";
 import { TOOL_META } from "@/lib/tool-meta";
 import { ToolRenderer } from "@/components/ui/ToolRenderer";
 import { ToolIntro } from "@/components/ui/ToolIntro";
 
 export function generateStaticParams() {
-  return TOPICS.filter((t) => TOOL_KEYS.has(t.toolComponent)).map((t) => ({
+  return TOPICS.filter((t) => !!TOOL_META[t.toolComponent]).map((t) => ({
     slug: t.slug,
   }));
 }
@@ -26,7 +25,7 @@ export default function ToolPage({ params }: { params: { slug: string } }) {
   const topic = getTopicBySlug(params.slug);
   if (!topic) notFound();
 
-  if (!TOOL_KEYS.has(topic.toolComponent)) notFound();
+  if (!TOOL_META[topic.toolComponent]) notFound();
 
   const meta = TOOL_META[topic.toolComponent];
 

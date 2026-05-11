@@ -11,7 +11,6 @@ import type { InterviewQuestion } from "@/types";
 interface ChapterShellProps {
   topic: Topic;
   children: ReactNode;
-  tool: ReactNode;
   misconception: { myth: string; reality: string };
   interviewQuestions?: InterviewQuestion[];
   prevTopic: Topic | null;
@@ -21,7 +20,6 @@ interface ChapterShellProps {
 export function ChapterShell({
   topic,
   children,
-  tool,
   misconception,
   interviewQuestions = [],
   prevTopic,
@@ -90,38 +88,24 @@ export function ChapterShell({
         <MisconceptionCard myth={misconception.myth} reality={misconception.reality} />
       </section>
 
-      {/* ── Interactive tool ── */}
-      <section
-        className="mt-10 rounded-2xl overflow-hidden"
-        style={{
-          border: "1px solid var(--border-subtle)",
-        }}
-      >
-        <div
-          className="px-5 py-3 flex items-center gap-2"
+      {/* ── Interactive tool link ── */}
+      <section className="mt-10">
+        <Link
+          href={`/${topic.slug}/tool`}
+          className="flex items-center gap-3 px-5 py-4 rounded-2xl border transition-all hover:brightness-110"
           style={{
             background: "var(--bg-surface-2)",
-            borderBottom: "1px solid var(--border-subtle)",
+            border: "1px solid var(--border-subtle)",
           }}
         >
-          <span
-            className="w-1.5 h-5 rounded-full"
-            style={{ background: actColor }}
-          />
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          <span className="w-1.5 h-6 rounded-full shrink-0" style={{ background: actColor }} />
+          <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
             Interactive Tool
-          </h2>
-          <Link
-            href={`/${topic.slug}/tool`}
-            className="ml-auto text-xs transition-colors hover:opacity-80"
-            style={{ color: "var(--text-muted)" }}
-          >
-            Full screen →
-          </Link>
-        </div>
-        <div className="p-5" style={{ background: "var(--bg-surface)" }}>
-          {tool}
-        </div>
+          </span>
+          <span className="ml-auto text-xs" style={{ color: actColor }}>
+            Open →
+          </span>
+        </Link>
       </section>
 
       {/* ── Interview questions (gated behind interview mode) ── */}
