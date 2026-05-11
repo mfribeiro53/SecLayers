@@ -1,0 +1,471 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "katex/dist/katex.min.css";
+@import "highlight.js/styles/github-dark.min.css";
+
+/* ─── Theme tokens ──────────────────────────────────────────── */
+:root {
+  /* Surfaces */
+  --bg-page: #0b1020;
+  --bg-surface: #111628;
+  --bg-surface-2: #161c32;
+  --bg-elevated: #1a2140;
+  --border-subtle: #1f2742;
+  --border-strong: #2a335b;
+  --text-primary: #e6e9f5;
+  --text-secondary: #aab0c6;
+  --text-muted: #6d748d;
+
+  /* Brand accent */
+  --accent: #6366f1;
+  --accent-soft: rgba(99, 102, 241, 0.15);
+
+  /* Act colors (kept from prior theme, slightly brightened for dark bg) */
+  --act-foundations: #94a3b8;
+  --act-web: #60a5fa;
+  --act-api: #a78bfa;
+  --act-mobile: #34d399;
+  --act-systems: #fb923c;
+  --act-cloud: #fb7185;
+  --act-supply-chain: #22d3ee;
+}
+
+html,
+body {
+  background: var(--bg-page);
+  color: var(--text-primary);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #38406b;
+}
+
+/* ─── Prose (MDX) ───────────────────────────────────────────── */
+.prose {
+  color: var(--text-secondary);
+  max-width: none;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+/* Suppress duplicate H1 — chapter card already shows the title. */
+.prose > h1:first-child {
+  display: none;
+}
+
+.prose h1 {
+  @apply text-3xl font-bold mt-10 mb-4;
+  color: var(--text-primary);
+}
+
+.prose h2 {
+  @apply text-2xl font-bold mt-12 mb-4 pb-2;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.prose h3 {
+  @apply text-xl font-semibold mt-8 mb-3;
+  color: var(--text-primary);
+}
+
+.prose h4 {
+  @apply text-base font-semibold mt-6 mb-2 uppercase tracking-wider;
+  color: var(--text-primary);
+}
+
+.prose p {
+  @apply my-4;
+}
+
+.prose strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.prose em {
+  color: var(--text-primary);
+  font-style: italic;
+}
+
+.prose a {
+  @apply underline-offset-4 transition-colors;
+  color: #818cf8;
+  text-decoration-color: rgba(129, 140, 248, 0.4);
+}
+.prose a:hover {
+  color: #a5b4fc;
+  text-decoration-color: #a5b4fc;
+}
+
+.prose ul {
+  @apply list-disc pl-6 my-4 space-y-1.5;
+}
+.prose ol {
+  @apply list-decimal pl-6 my-4 space-y-1.5;
+}
+.prose ul,
+.prose ol {
+  --tw-prose-bullets: #4b5375;
+}
+.prose ul > li::marker,
+.prose ol > li::marker {
+  color: var(--text-muted);
+}
+.prose li > p {
+  @apply my-1;
+}
+
+.prose hr {
+  @apply my-10;
+  border-color: var(--border-subtle);
+}
+
+/* Blockquote → callout */
+.prose blockquote {
+  @apply pl-4 my-6 py-3 rounded-r-md;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-style: normal;
+}
+.prose blockquote p {
+  @apply my-1;
+}
+
+/* Inline code */
+.prose :where(code):not(:where(pre code)) {
+  @apply font-mono text-[0.9em] px-1.5 py-0.5 rounded;
+  background: var(--bg-elevated);
+  color: #c4b5fd;
+  border: 1px solid var(--border-subtle);
+  font-weight: 500;
+}
+.prose code::before,
+.prose code::after {
+  content: none;
+}
+
+/* Code blocks (github-dark from highlight.js) */
+.prose pre {
+  @apply rounded-lg my-6 p-4 overflow-x-auto text-sm leading-relaxed;
+  background: #0d1117 !important;
+  border: 1px solid var(--border-subtle);
+}
+.prose pre code {
+  background: transparent !important;
+  border: 0;
+  padding: 0;
+  font-size: 0.875rem;
+  color: inherit;
+}
+
+/* Tables */
+.prose table {
+  @apply w-full my-6 text-sm border-collapse;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.prose thead {
+  background: var(--bg-surface-2);
+}
+.prose th {
+  @apply px-3 py-2 text-left font-semibold;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-strong);
+}
+.prose td {
+  @apply px-3 py-2 align-top;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.prose tbody tr:last-child td {
+  border-bottom: none;
+}
+.prose tbody tr:hover {
+  background: var(--bg-surface);
+}
+
+.prose img {
+  @apply rounded-lg my-6;
+  border: 1px solid var(--border-subtle);
+}
+
+/* KaTeX */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.katex {
+  color: var(--text-primary);
+}
+
+/* ─── Utility classes ───────────────────────────────────────── */
+.surface {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+}
+.surface-2 {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-subtle);
+}
+
+/* ─── Tool dark-mode remap ───────────────────────────────────
+   Tools were authored with light-mode Tailwind classes. Rather
+   than rewrite 18 files, we remap the common ones inside the
+   ToolShell scope so they read against the dark background. */
+
+.tool-surface .bg-white,
+.tool-surface .bg-slate-50,
+.tool-surface .bg-slate-50\/50,
+.tool-surface .bg-slate-50\/30 {
+  background-color: var(--bg-surface-2) !important;
+}
+.tool-surface .bg-slate-100 {
+  background-color: var(--bg-elevated) !important;
+}
+.tool-surface .bg-slate-200 {
+  background-color: var(--border-strong) !important;
+}
+.tool-surface .bg-slate-800,
+.tool-surface .bg-slate-900 {
+  background-color: #0a0d18 !important;
+}
+
+.tool-surface .text-slate-400 { color: var(--text-muted) !important; }
+.tool-surface .text-slate-500 { color: var(--text-muted) !important; }
+.tool-surface .text-slate-600,
+.tool-surface .text-slate-700,
+.tool-surface .text-slate-800 { color: var(--text-secondary) !important; }
+.tool-surface .text-slate-900 { color: var(--text-primary) !important; }
+.tool-surface .text-white { color: white !important; }
+
+.tool-surface .border-slate-100,
+.tool-surface .border-slate-200,
+.tool-surface .border-slate-300 {
+  border-color: var(--border-subtle) !important;
+}
+
+/* Tinted callout blocks inside tools — keep tint, soften */
+.tool-surface .bg-red-50 { background-color: rgba(248,113,113,0.10) !important; }
+.tool-surface .bg-red-100 { background-color: rgba(248,113,113,0.18) !important; }
+.tool-surface .border-red-100,
+.tool-surface .border-red-200 { border-color: rgba(248,113,113,0.35) !important; }
+.tool-surface .text-red-600,
+.tool-surface .text-red-700,
+.tool-surface .text-red-800 { color: #fca5a5 !important; }
+
+.tool-surface .bg-emerald-50 { background-color: rgba(52,211,153,0.10) !important; }
+.tool-surface .bg-emerald-100 { background-color: rgba(52,211,153,0.18) !important; }
+.tool-surface .border-emerald-100,
+.tool-surface .border-emerald-200 { border-color: rgba(52,211,153,0.35) !important; }
+.tool-surface .text-emerald-600,
+.tool-surface .text-emerald-700,
+.tool-surface .text-emerald-800 { color: #6ee7b7 !important; }
+
+.tool-surface .bg-amber-50 { background-color: rgba(251,191,36,0.10) !important; }
+.tool-surface .border-amber-100,
+.tool-surface .border-amber-200 { border-color: rgba(251,191,36,0.35) !important; }
+.tool-surface .text-amber-600,
+.tool-surface .text-amber-700,
+.tool-surface .text-amber-800,
+.tool-surface .text-amber-900 { color: #fcd34d !important; }
+
+.tool-surface .bg-blue-50 { background-color: rgba(96,165,250,0.10) !important; }
+.tool-surface .bg-blue-100 { background-color: rgba(96,165,250,0.18) !important; }
+.tool-surface .text-blue-500,
+.tool-surface .text-blue-600,
+.tool-surface .text-blue-700,
+.tool-surface .text-blue-800 { color: #93c5fd !important; }
+.tool-surface .border-blue-100,
+.tool-surface .border-blue-200 { border-color: rgba(96,165,250,0.35) !important; }
+
+.tool-surface .bg-orange-50,
+.tool-surface .bg-orange-100 { background-color: rgba(251,146,60,0.14) !important; }
+.tool-surface .border-orange-100,
+.tool-surface .border-orange-200 { border-color: rgba(251,146,60,0.35) !important; }
+.tool-surface .text-orange-600,
+.tool-surface .text-orange-700,
+.tool-surface .text-orange-800 { color: #fdba74 !important; }
+
+.tool-surface .bg-yellow-50,
+.tool-surface .bg-yellow-100 { background-color: rgba(250,204,21,0.14) !important; }
+.tool-surface .border-yellow-100,
+.tool-surface .border-yellow-200 { border-color: rgba(250,204,21,0.35) !important; }
+.tool-surface .text-yellow-600,
+.tool-surface .text-yellow-700,
+.tool-surface .text-yellow-800 { color: #fde047 !important; }
+
+.tool-surface .bg-purple-50,
+.tool-surface .bg-purple-100 { background-color: rgba(192,132,252,0.14) !important; }
+.tool-surface .border-purple-100,
+.tool-surface .border-purple-200 { border-color: rgba(192,132,252,0.35) !important; }
+.tool-surface .text-purple-600,
+.tool-surface .text-purple-700,
+.tool-surface .text-purple-800 { color: #d8b4fe !important; }
+
+.tool-surface .bg-pink-50,
+.tool-surface .bg-pink-100 { background-color: rgba(244,114,182,0.14) !important; }
+.tool-surface .border-pink-100,
+.tool-surface .border-pink-200 { border-color: rgba(244,114,182,0.35) !important; }
+.tool-surface .text-pink-600,
+.tool-surface .text-pink-700,
+.tool-surface .text-pink-800 { color: #f9a8d4 !important; }
+
+.tool-surface .bg-cyan-50,
+.tool-surface .bg-cyan-100 { background-color: rgba(103,232,249,0.14) !important; }
+.tool-surface .text-cyan-600,
+.tool-surface .text-cyan-700,
+.tool-surface .text-cyan-800 { color: #67e8f9 !important; }
+
+.tool-surface .bg-violet-50,
+.tool-surface .bg-violet-100 { background-color: rgba(167,139,250,0.14) !important; }
+.tool-surface .border-violet-200 { border-color: rgba(167,139,250,0.35) !important; }
+.tool-surface .text-violet-600,
+.tool-surface .text-violet-700,
+.tool-surface .text-violet-800 { color: #c4b5fd !important; }
+
+.tool-surface .bg-indigo-50 { background-color: rgba(129,140,248,0.10) !important; }
+.tool-surface .bg-indigo-100 { background-color: rgba(129,140,248,0.18) !important; }
+.tool-surface .bg-indigo-500,
+.tool-surface .bg-indigo-600 { background-color: var(--accent) !important; }
+.tool-surface .border-indigo-100,
+.tool-surface .border-indigo-200 { border-color: rgba(129,140,248,0.35) !important; }
+
+.tool-surface .bg-rose-50,
+.tool-surface .bg-rose-100 { background-color: rgba(251,113,133,0.14) !important; }
+.tool-surface .border-rose-100,
+.tool-surface .border-rose-200 { border-color: rgba(251,113,133,0.35) !important; }
+.tool-surface .text-rose-600,
+.tool-surface .text-rose-700 { color: #fda4af !important; }
+
+/* `text-green-400` in monospace output stays green (terminal-style) */
+
+.tool-surface input,
+.tool-surface textarea,
+.tool-surface select {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.tool-surface input::placeholder,
+.tool-surface textarea::placeholder {
+  color: var(--text-muted);
+}
+.tool-surface input:focus,
+.tool-surface textarea:focus,
+.tool-surface select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.tool-surface pre {
+  background-color: #0a0d18 !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-subtle);
+}
+.tool-surface table {
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.tool-surface th {
+  background-color: var(--bg-surface-2);
+  color: var(--text-primary);
+}
+
+/* Buttons: lift the visual hierarchy of action buttons in tools */
+.tool-surface .bg-blue-500,
+.tool-surface .bg-blue-600,
+.tool-surface .bg-blue-700 {
+  background-color: var(--accent) !important;
+}
+.tool-surface .hover\:bg-blue-600:hover,
+.tool-surface .hover\:bg-blue-700:hover,
+.tool-surface .hover\:bg-blue-800:hover {
+  background-color: #818cf8 !important;
+}
+
+.tool-surface .bg-red-500,
+.tool-surface .bg-red-600 {
+  background-color: #ef4444 !important;
+}
+.tool-surface .hover\:bg-red-600:hover,
+.tool-surface .hover\:bg-red-700:hover {
+  background-color: #f87171 !important;
+}
+
+.tool-surface .bg-emerald-500,
+.tool-surface .bg-emerald-600 {
+  background-color: #10b981 !important;
+}
+.tool-surface .hover\:bg-emerald-600:hover,
+.tool-surface .hover\:bg-emerald-700:hover {
+  background-color: #34d399 !important;
+}
+
+/* Disabled buttons should look obviously disabled, not just faded white */
+.tool-surface button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Code-like spans within tools (token chips, hex bytes, etc.) */
+.tool-surface code {
+  background-color: var(--bg-elevated);
+  color: #c4b5fd;
+  border: 1px solid var(--border-subtle);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+
+/* Borders left in default light shade */
+.tool-surface .border {
+  border-color: var(--border-subtle);
+}
+
+/* Subtle accents on slate-800/900 surfaces (e.g. dark code panels) */
+.tool-surface .bg-slate-800 .text-slate-100,
+.tool-surface .bg-slate-900 .text-slate-100,
+.tool-surface .bg-slate-800 .text-slate-200,
+.tool-surface .bg-slate-900 .text-slate-200 {
+  color: var(--text-primary) !important;
+}
+
+/* ─── Bare inline code (outside prose) ──────────────────────── */
+code:not([class]) {
+  background: #1a1a28;
+  border: 1px solid #2a2a40;
+  color: #a5b4fc;
+  border-radius: 0.3em;
+  padding: 0.1em 0.4em;
+  font-size: 0.87em;
+}
+
+/* ─── KaTeX block display ────────────────────────────────────── */
+.math-block {
+  background: #0d0d16;
+  border: 1px solid #1e1e35;
+  border-radius: 0.75rem;
+  padding: 1rem 1.25rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}

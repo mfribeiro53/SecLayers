@@ -1,0 +1,103 @@
+# JWT Deep Dive
+
+Chapter 8 introduced JWTs as an alternative to server-side sessions. This chapter goes deeper: the structure, the signing algorithms, the attack surface, and what production-grade JWT validation looks like.
+
+<Callout kind="insight">
+**The JWT payload is signed, not encrypted.** Anyone with the token can `atob` it. Never put secrets there. Pin the algorithm at verification (`algorithms: ['RS256']`) so the token can't choose how it's verified — that's the alg=none and HS/RS confusion attacks in two lines. And remember: stateless JWTs can't be revoked. Short access lifetimes + rotating refresh tokens are how you get both.
+</Callout>
+
+---
+
+## JWT Structure (Revisited)
+
+```
+eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiIxMjMifQ.signature
+```
+
+Three base64url-encoded segments. **The header and payload are encoded, not encrypted.** Anyone who intercepts a JWT can read its contents.
+
+---
+
+## Signing Algorithms
+
+| alg | Type | Key | Use Case |
+|-----|------|-----|----------|
+| HS256 | HMAC-SHA256 | Shared secret | Single-service auth |
+| RS256 | RSA-SHA256 | Public/private key | Multi-service, key rotation |
+| ES256 | ECDSA P-256 | Public/private key | Modern, smaller signatures |
+| none | No signature | — | **Never accept** |
+
+**Algorithm confusion:** The attacker changes the header's `alg` to `none` and strips the signature. If the server's JWT library trusts the header without whitelisting algorithms, the unsigned token is accepted. Always whitelist: `algorithms: ['RS256', 'ES256']`.
+
+---
+
+## Claims
+
+**Registered claims** (standardized by RFC 7519):
+
+| Claim | Meaning | Use |
+|-------|---------|-----|
+| `iss` | Issuer | Who created this token? |
+| `sub` | Subject | Who is this token about? |
+| `aud` | Audience | Who should accept this token? |
+| `exp` | Expiration | When does this token expire? |
+| `nbf` | Not Before | When does this token become valid? |
+| `iat` | Issued At | When was this token created? |
+| `jti` | JWT ID | Unique token identifier (revocation) |
+
+**Always validate:** `exp` (reject expired), `aud` (reject if not intended for your API), `iss` (reject if from wrong issuer).
+
+---
+
+## Token Validation Checklist
+
+A production-grade JWT validator does all of these:
+
+1. Verify signature using the correct key
+2. Check `exp` — reject if expired
+3. Check `nbf` — reject if not yet valid
+4. Check `iss` — reject if wrong issuer
+5. Check `aud` — reject if not intended for this API
+6. Check `jti` against a revocation list (if implementing token revocation)
+7. Whitelist allowed algorithms — reject `none`
+
+---
+
+## Key Rotation
+
+Signing keys should rotate. The old key remains valid for a grace period (tokens signed with it are still accepted), then is retired.
+
+Publish keys via JWKS (JSON Web Key Set) endpoint:
+
+```
+GET /.well-known/jwks.json
+{
+  "keys": [
+    { "kty": "RSA", "kid": "2024-01", ... },
+    { "kty": "RSA", "kid": "2023-07", ... }
+  ]
+}
+```
+
+The `kid` (key ID) in the JWT header tells the server which key to use for verification.
+
+---
+
+## Summary
+
+| Rule | Why |
+|------|-----|
+| Whitelist algorithms | Prevents alg:none attacks |
+| Validate all claims | `exp`, `aud`, `iss` minimum |
+| Short-lived tokens | 5-15 min access tokens |
+| Refresh token rotation | Old refresh token invalidated on use |
+| JWKS endpoint | Enables key rotation |
+| Never put secrets in payload | Payload is encoded, not encrypted |
+
+---
+
+## Misconception
+
+**Myth:** "JWTs are encrypted, so the payload data is safe."
+
+**Reality:** JWTs are signed, not encrypted. The payload is base64url-encoded — trivially decoded. Anyone who intercepts a JWT can read the payload. Use JWE (JSON Web Encryption) if you need payload confidentiality — but in most cases, simply don't put sensitive data in the payload. Fetch it server-side after validating the token.

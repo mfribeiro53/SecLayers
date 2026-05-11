@@ -1,0 +1,38 @@
+[
+  {
+    "id": "auth-junior-01",
+    "question": "What is the difference between authentication and authorization?",
+    "answer": "Authentication verifies who you are — it answers 'Are you who you claim to be?' (login, password, MFA). Authorization determines what you can do — it answers 'Are you allowed to do this?' (access control, roles, permissions). Authentication happens first; authorization checks happen on every request thereafter. A user can be authenticated (logged in) but not authorized (e.g., a regular user trying to access an admin endpoint).",
+    "category": "junior"
+  },
+  {
+    "id": "auth-junior-02",
+    "question": "What is multi-factor authentication (MFA) and why is it important?",
+    "answer": "MFA requires two or more different types of authentication factors: something you know (password), something you have (phone, hardware key, TOTP app), or something you are (biometric). It's important because passwords alone are vulnerable to phishing, credential stuffing, and brute-force attacks. MFA means an attacker needs to compromise two independent factors — stealing a password is not enough. TOTP (app-based) and WebAuthn (hardware keys) are preferred over SMS, which is vulnerable to SIM swapping.",
+    "category": "junior"
+  },
+  {
+    "id": "auth-mid-01",
+    "question": "Compare server-side sessions and JWT-based authentication. When would you use each?",
+    "answer": "Server-side sessions: Server stores session data (user ID, roles). Client holds opaque session ID in HttpOnly cookie. Pros: Immediate revocation (delete session), simpler implementation, no data exposure in token. Cons: Requires shared session store (Redis) for horizontal scaling. Use for browser-based apps.\n\nJWT: Self-contained token with user claims, signed by server. Client stores token (localStorage or cookie). Pros: Stateless — no server-side session store needed, good for microservices and mobile. Cons: Cannot revoke individual tokens, token size, algorithm confusion risks. Use for service-to-service, mobile apps, or when statelessness is required.\n\nDefault recommendation: server-side sessions for browser apps. JWT for specific use cases where statelessness adds value.",
+    "category": "mid"
+  },
+  {
+    "id": "auth-mid-02",
+    "question": "What is session fixation and how do you prevent it?",
+    "answer": "Session fixation is when an attacker forces a victim to use a known session ID. Attack flow: (1) Attacker obtains session ID EVIL123, (2) tricks victim into authenticating with that session ID (cookie injection, URL parameter), (3) server associates EVIL123 with victim's identity, (4) attacker uses EVIL123 and is authenticated as victim.\n\nPrevention: Regenerate the session ID on login. Always. The old session is invalidated and a new random ID is issued. Also regenerate on privilege escalation and after fixed intervals. Never accept session IDs from URL parameters — only from cookies.",
+    "category": "mid"
+  },
+  {
+    "id": "auth-senior-01",
+    "question": "What are the security risks of JWTs and how do you mitigate them?",
+    "answer": "1. Algorithm confusion (alg:none): Attacker strips signature. Mitigation: Whitelist allowed algorithms (HS256, RS256). Reject alg:none.\n2. Weak HMAC secrets: Brute-forceable. Mitigation: Use 256-bit random secrets.\n3. Token size: Large tokens increase request overhead. Mitigation: Keep claims minimal. Don't embed roles/permissions — fetch them server-side.\n4. No revocation: Stolen token valid until expiry. Mitigation: Short-lived access tokens (15 min) + refresh tokens. Maintain a token blocklist for emergency revocation.\n5. Data exposure: Payload is base64-encoded, not encrypted. Mitigation: Never put secrets, PII, or sensitive claims in the JWT payload.\n6. Key management for RS256: Private key must be secured. Mitigation: Use a KMS. Rotate keys regularly. Support JWKS endpoint for key discovery.",
+    "category": "senior"
+  },
+  {
+    "id": "auth-senior-02",
+    "question": "Design a secure authentication system for a SaaS application with web and mobile clients.",
+    "answer": "Web client: Server-side sessions with HttpOnly; Secure; SameSite=Lax cookies. Session ID generated via crypto.randomBytes(32). Regenerate on login, privilege change, and every 30 minutes. Store sessions in Redis. Absolute timeout: 12 hours. Idle timeout: 30 minutes. Rate limit login: 5 attempts per account per 15 minutes.\n\nMobile client: JWT-based. Access token (15 min) + refresh token (7 days, stored in secure storage: iOS Keychain, Android Keystore). Refresh token rotation — issue new refresh token on each use; invalidate old one. If a refresh token is reused (indicating theft), invalidate the entire token family.\n\nShared: MFA via TOTP (app-based). Support WebAuthn/passkeys for passwordless. Check passwords against Have I Been Pwned API on registration. bcrypt cost factor 12. Centralized auth service (OAuth 2.0 / OIDC) issuing tokens for both clients. Log all auth events (login, logout, MFA, password change) to SIEM.",
+    "category": "senior"
+  }
+]

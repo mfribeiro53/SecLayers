@@ -1,0 +1,102 @@
+# GraphQL Security
+
+GraphQL flips the security model of REST. Instead of the server defining fixed endpoints with fixed responses, the client sends a query specifying exactly what data it wants. This flexibility creates new attack surfaces: excessive data exposure, deep queries, batch attacks, and introspection abuse.
+
+<Callout kind="insight">
+GraphQL gives the client more power, so the server has to encode more policy. Per-endpoint thinking doesn't work — **every field is a potential authz boundary**, and every nested query is a cost multiplier. Pair field-level authorization with query depth + complexity limits, persisted queries for public APIs, and DataLoader to defuse N+1 fan-out.
+</Callout>
+
+---
+
+## How GraphQL Differs from REST
+
+| Property | REST | GraphQL |
+|----------|------|---------|
+| Endpoints | Many (`/users`, `/orders`) | One (`/graphql`) |
+| Data shape | Server-defined | Client-defined |
+| Auth granularity | Per-endpoint | Per-field / per-type |
+| Rate limiting | Per-endpoint | Per-query-complexity |
+| Over-fetching | Common (returns full objects) | Impossible (client specifies fields) |
+
+---
+
+## Attacks
+
+### Introspection Abuse
+
+GraphQL's introspection system lets clients discover the entire schema — types, fields, queries, mutations.
+
+```graphql
+{
+  __schema {
+    types { name fields { name type { name } } }
+  }
+}
+```
+
+An attacker uses this to find hidden fields (`deleteUser`, `adminStats`, `internalNotes`) that aren't in the documentation. **Disable introspection in production** or restrict it to authenticated admins.
+
+### Deep Query DoS
+
+Circular relationships in the schema allow exponentially large queries:
+
+```graphql
+{
+  users {
+    posts { author { posts { author { posts { ... } } } } }
+  }
+}
+```
+
+A query 10 levels deep can retrieve millions of objects. Defense: **query depth limiting** (reject queries deeper than N) and **query cost analysis** (assign costs to fields, reject queries over a budget).
+
+### Batching Attacks
+
+GraphQL allows multiple queries per request:
+
+```graphql
+query {
+  a: login(password: "password1") { token }
+  b: login(password: "password2") { token }
+  c: login(password: "password3") { token }
+  ...(100 more)
+}
+```
+
+An attacker sends 100 password guesses in one HTTP request, bypassing REST-style rate limiting. Defense: count each batched query against rate limits individually.
+
+### Field-Level Authorization
+
+REST endpoints gate entire resources. GraphQL needs field-level auth — a user might be allowed to see a `User.email` but not `User.ssn`.
+
+```javascript
+const resolvers = {
+  User: {
+    email: (user, args, context) => {
+      if (context.user.id !== user.id) throw new ForbiddenError();
+      return user.email;
+    }
+  }
+};
+```
+
+Every sensitive field needs its own auth check.
+
+---
+
+## Defenses
+
+- Disable introspection in production
+- Enforce query depth limit (4-7 levels)
+- Query cost analysis with a maximum budget
+- Field-level authorization for sensitive data
+- Persisted queries — only allow pre-registered queries
+- Rate limit by query complexity, not just request count
+
+---
+
+## Misconception
+
+**Myth:** "GraphQL is more secure than REST because the client only gets what it asks for."
+
+**Reality:** The client only gets what it asks for — but it can ask for anything the schema exposes. REST endpoints limit data by design; GraphQL requires explicit field-level restrictions. A GraphQL API without field-level auth exposes all fields to all users. The query language is a power tool, not a security feature.

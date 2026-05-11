@@ -1,0 +1,38 @@
+[
+  {
+    "id": "api-versioning-junior-01",
+    "question": "What is API versioning and why does it matter for security?",
+    "answer": "API versioning is the practice of explicitly distinguishing incompatible iterations of an API (e.g., /v1/users vs /v2/users, or Accept: application/vnd.api.v2+json) so clients and servers can evolve independently.\n\nSecurity matters because older API versions tend to accumulate vulnerabilities — deprecated auth schemes, missing rate limits, looser input validation, or endpoints that exposed fields newer versions have since removed. Attackers routinely probe for /v0, /v1, /api/internal, or undocumented routes when /v3 is the only documented version. If those old paths are still reachable, the strongest production controls don't apply to them.",
+    "category": "junior"
+  },
+  {
+    "id": "api-versioning-junior-02",
+    "question": "What is information leakage in API responses? Give common examples.",
+    "answer": "Information leakage is when an API response contains data the client doesn't need but an attacker can exploit — for fingerprinting the stack, mapping attack surface, or escalating a finding.\n\nCommon examples:\n- Server: nginx/1.18.0 or X-Powered-By: Express headers — tells the attacker which CVEs to try.\n- Stack traces in 500 responses — reveal framework versions, file paths, ORM internals.\n- Verbose validation errors: \"User with email admin@x.com not found\" leaks account enumeration; \"unknown column 'x'\" leaks schema.\n- Differential timing/status: 200 for a valid username and 404 for an invalid one.\n- Excessive fields: returning the full user object (password_hash, internal_id, totp_secret) when only displayName was needed.\n- Debug endpoints: /debug, /actuator/env, /trace, /api-docs, /graphql with introspection enabled.\n- ETag/Last-Modified across tenants — can leak existence of resources you don't own.",
+    "category": "junior"
+  },
+  {
+    "id": "api-versioning-mid-01",
+    "question": "Compare URL path versioning vs header versioning. Which would you choose and why?",
+    "answer": "URL path (/v1/users):\n+ Trivial to test from a browser/curl.\n+ Caches and proxies index it cleanly.\n+ Obvious in logs, traces, WAF rules, and rate limit buckets.\n- Couples version to URL — clients hard-code paths.\n- Awkward for partial-resource evolution (versioning a single field).\n\nHeader / media-type (Accept: application/vnd.example.v2+json):\n+ Same URL across versions — \"true\" REST purist position.\n+ Content negotiation lets one client target multiple versions per call.\n- Invisible in logs without explicit instrumentation.\n- Easy to forget — clients that omit the header fall through to a default, often the oldest version.\n- Caching is harder (must Vary: Accept).\n\nIn practice: URL path versioning wins on operability. Most teams that started with header versioning end up adding /v1/ anyway for tooling. Pick one and enforce it — the worst outcome is multiple coexisting schemes.",
+    "category": "mid"
+  },
+  {
+    "id": "api-versioning-mid-02",
+    "question": "How do you safely deprecate and retire an old API version?",
+    "answer": "1. Announce: publish a deprecation notice with a target sunset date in changelogs and developer docs.\n\n2. Signal in responses: add Deprecation: true and Sunset: <date> headers (RFC 8594) so clients see the warning in every response, not just docs.\n\n3. Measure usage: log every request to the old version with the caller's client_id, IP, and User-Agent. You can't kill what you can't see.\n\n4. Reach out: contact top callers directly. The long tail of 200 callers making 1% of traffic is where outages come from.\n\n5. Brownouts: shortly before sunset, return errors for a few minutes per day, lengthening over time. Forces caller attention without a single cliff.\n\n6. Lock down: stop bug fixes for the old version, only patch security. New features go only to the new version.\n\n7. Retire: return 410 Gone (not 404) with a Link: header pointing to the replacement. Keep this 410 alive — don't reuse the path for something else.\n\nSecurity angle: an unmaintained version is a liability. The longer you keep it alive \"just in case,\" the more likely a future CVE in a transitive dependency hits a path no one is patching.",
+    "category": "mid"
+  },
+  {
+    "id": "api-versioning-senior-01",
+    "question": "Design a strategy to prevent older API versions from becoming security debt.",
+    "answer": "Treat each version as a deploy target with its own SLOs, owners, and exit criteria.\n\nGuardrails:\n1. Shared middleware: auth, rate limiting, input validation, and logging live in a shared layer that all versions use. Versioned controllers should never re-implement these.\n\n2. Contract tests on every version: golden-file tests run in CI for each version's responses. A change that quietly widens v1's response is caught.\n\n3. Field-level allowlists, not blocklists: response serializers explicitly list permitted fields. New fields don't leak into old versions just because the underlying model gained them.\n\n4. Differential coverage: SAST/DAST/fuzzing must run against every live version. If your scanner only hits /v3, /v1 becomes a hole.\n\n5. Hard sunset clock: every version gets a sunset date at launch. Renewals require an explicit decision, not inertia.\n\n6. Telemetry-driven cleanup: dashboards showing per-version request volume, unique callers, and last-modified date. Any version with zero traffic for 30 days is auto-flagged for removal.\n\n7. Internal vs external: \"internal\" APIs are still APIs. Treat /internal-v1 with the same rigor — assume an attacker can reach it.",
+    "category": "senior"
+  },
+  {
+    "id": "api-versioning-senior-02",
+    "question": "An attacker discovers an old /v1/ endpoint returns more fields than /v2/. Walk through how to investigate and respond.",
+    "answer": "Triage (first hour):\n1. Confirm the leak: diff /v1/ and /v2/ responses for the same resource. Enumerate fields that v1 returns but v2 doesn't.\n2. Classify the data: are leaked fields sensitive (PII, secrets, tokens, internal IDs, permissions)?\n3. Authentication context: does v1 enforce the same authorization as v2, or are scopes/permissions checked differently?\n4. Check the logs: how long has v1 been live, who called it, and have any unusual access patterns been recorded recently?\n\nContain (same day):\n5. If sensitive data is exposed and the endpoint is rarely used, return 410 immediately.\n6. If still in use, hot-patch the serializer to strip the leaked fields. Ship behind a feature flag so you can re-enable if you break a real client.\n7. Add a WAF rule blocking access to the leaked fields by signature, as a belt-and-braces measure.\n\nEradicate (this week):\n8. Audit other versions for the same drift — this is rarely an isolated bug. Likely the serializer was duplicated and never re-synced.\n9. Add a regression test pinning the v1 schema so it can't drift further open.\n10. Force a credential rotation for any secret-bearing fields that were leaked (API tokens, integration keys).\n\nLessons (this quarter):\n11. Move to allowlist serializers if you weren't already.\n12. Add contract tests per version.\n13. Notify customers per your breach-disclosure policy if PII was actually leaked, not just exposed.\n\nThe meta-point: every old version is an attacker recon target. Assume they will find it first.",
+    "category": "senior"
+  }
+]

@@ -1,0 +1,72 @@
+# API Versioning & Information Leakage
+
+Every API evolves. Fields are added, removed, renamed. Without versioning, changes break clients. With versioning comes a security problem: old API versions often expose data that the new version intentionally hides — and attackers know to check.
+
+<Callout kind="insight">
+**Deprecated API versions accumulate vulnerabilities.** Security attention has moved to v2, but v1 still serves real users — and real attackers. Allowlist your response serializers (so new sensitive fields don't silently leak into old versions), signal sunsets with the `Deprecation`/`Sunset` headers, and *actually retire* — returning `410 Gone`, not `404`.
+</Callout>
+
+---
+
+## Versioning Strategies
+
+| Strategy | Example | Pros / Cons |
+|----------|---------|-------------|
+| URL path | `/api/v2/users` | Simple, visible. Old versions live forever. |
+| Header | `Accept: application/vnd.api+json;version=2` | Clean URLs. Harder to discover. |
+| Query param | `/api/users?version=2` | Simple. Clutters URLs. |
+
+---
+
+## The Information Leakage Problem
+
+**Scenario:** v1 of the user endpoint returned `email`. This was a privacy concern, so v2 removed it.
+
+```
+GET /api/v1/users/123
+{ "id": 123, "name": "Alice", "email": "alice@example.com" }
+
+GET /api/v2/users/123
+{ "id": 123, "name": "Alice" }
+```
+
+The developer deprecates v1 and tells API consumers to migrate. But **v1 still works.** An attacker who discovers or guesses the v1 endpoint gets the email field. Old API versions are a goldmine of leaked data.
+
+---
+
+## Preventing Version-Based Leaks
+
+1. **Actually deprecate old versions.** Set a hard sunset date. Communicate it. Shut it off.
+2. **Strip sensitive fields before response, not in version logic.** If `email` is sensitive, the database query should conditionally exclude it — not rely on v2's serializer to omit it.
+3. **Monitor old version traffic.** If v1 still gets requests years after deprecation, someone is probing it.
+4. **Use API gateways to enforce version routing.** Centralized control prevents accidental exposure.
+
+---
+
+## Other Information Leakage Vectors
+
+- **Error messages:** Stack traces, SQL errors, internal paths
+- **Response headers:** `Server: Apache/2.4.1`, `X-Powered-By: Express`
+- **Timing:** Response time differences reveal valid vs invalid data
+- **Pagination:** `totalCount` reveals dataset size
+- **Autocomplete:** Search suggestions leak other users' data
+
+---
+
+## Summary
+
+| Principle | Practice |
+|-----------|----------|
+| Version APIs explicitly | URL path or header |
+| Sunset old versions | Hard date, communicated, enforced |
+| Strip data at query layer | Not just in serialization |
+| Monitor old endpoints | Traffic = attacker probing |
+| Minimal error info | Generic messages, log details server-side |
+
+---
+
+## Misconception
+
+**Myth:** "We deprecated v1 — no one uses it anymore, so it doesn't matter what it returns."
+
+**Reality:** Deprecated is not deleted. Attackers specifically target old API versions because they know security attention has moved to the current version. Every live endpoint is an attack surface. If v1 exposes data that v2 doesn't, it's a data leak. Deprecation without deactivation is a time bomb.

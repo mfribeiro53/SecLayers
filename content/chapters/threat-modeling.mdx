@@ -1,0 +1,143 @@
+# Threat Modeling with STRIDE
+
+Threat modeling is the single most important security activity most teams skip. It answers one question: **what could go wrong, before anyone writes code?**
+
+A threat model is a structured representation of a system's security-relevant characteristics: what you're building, what can attack it, and how you'll defend. Done well, it finds design flaws that code review and penetration testing miss — because those methods look at implementations, not architectures.
+
+<Callout kind="insight">
+Threats live at **trust boundaries** — every place data crosses from less-trusted to more-trusted. STRIDE is just six questions you ask at each boundary. Find the threats in the design and you fix them for $10. Find them in production and they cost $100k+.
+</Callout>
+
+---
+
+## Why Threat Model?
+
+**Find design flaws, not just bugs.** A missing authentication check on an API endpoint is a design flaw — it exists in the architecture, not in a line of code. SAST and DAST find bugs in implementations; threat modeling finds gaps in design.
+
+**Prioritize defenses.** Not every threat warrants the same response. Threat modeling gives you a risk-ranked list — you fix the critical threats and accept or transfer the rest.
+
+**Shared understanding.** A threat model is a communication artifact. It gets security, engineering, and product aligned on what the system trusts and what it doesn't.
+
+**Compliance.** SOC 2, ISO 27001, and GDPR all require risk assessments. A threat model is a risk assessment with teeth — it's tied to the actual system architecture.
+
+---
+
+## STRIDE
+
+STRIDE is a threat classification framework developed at Microsoft. Each letter represents a category of threat:
+
+| Letter | Threat | Property Violated | Example |
+|--------|--------|-------------------|---------|
+| **S** | Spoofing | Authentication | Attacker uses stolen credentials to log in as admin |
+| **T** | Tampering | Integrity | Attacker modifies a JWT payload to escalate privileges |
+| **R** | Repudiation | Non-repudiation | User deletes a record and denies doing it — no audit log |
+| **I** | Information Disclosure | Confidentiality | API returns user PII to an unauthenticated caller |
+| **D** | Denial of Service | Availability | Attacker floods the login endpoint, locking out users |
+| **E** | Elevation of Privilege | Authorization | Regular user accesses admin endpoints via IDOR |
+
+**The mapping is clean:** STRIDE covers the six security properties — authentication, integrity, non-repudiation, confidentiality, availability, authorization. If your threat model covers all six STRIDE categories for every element in your system, you have no blind spots.
+
+---
+
+## Data Flow Diagrams
+
+The standard notation for threat modeling is the Data Flow Diagram (DFD). It uses five element types:
+
+| Element | Symbol | Meaning |
+|---------|--------|---------|
+| **External Entity** | Rectangle | A person or system outside your control (user, third-party API, payment processor) |
+| **Process** | Circle / rounded rect | Code that processes data (web server, auth service, message queue worker) |
+| **Data Store** | Parallel lines | Where data rests (database, S3 bucket, Redis cache, file system) |
+| **Data Flow** | Arrow | Data in motion between elements (HTTP request, message queue event, file upload) |
+| **Trust Boundary** | Dashed line | A boundary where trust level changes (user → server, microservice A → microservice B, public internet → VPC) |
+
+**Trust boundaries are where threats live.** Every time data crosses a trust boundary, you must ask: is this data being spoofed? Tampered with? Could it be disclosed? Every STRIDE threat maps to a trust boundary crossing.
+
+---
+
+## How to Threat Model
+
+### 1. Scope
+
+What are we modeling? A specific feature, a microservice, the entire system? Draw the boundary. A model of "our payment system" is manageable; a model of "everything we do" is useless.
+
+### 2. Draw the DFD
+
+Start with external entities (who interacts with the system). Add processes (what does the work). Add data stores (where data lives). Draw data flows (how data moves). Draw trust boundaries (where trust changes).
+
+### 3. Apply STRIDE per Element
+
+For each element, ask the STRIDE questions:
+
+**External Entities (users, third parties):**
+- S: How do we authenticate this entity?
+- R: Can this entity deny actions? Do we log enough to prove otherwise?
+
+**Processes (services, functions):**
+- S: How does the process authenticate callers?
+- T: Could input data be tampered with before processing?
+- R: Are actions logged with user identity?
+- I: Could the process leak data in logs or error messages?
+- D: Is the process resilient to resource exhaustion?
+- E: Does the process check authorization for every action?
+
+**Data Stores (databases, caches, buckets):**
+- T: Could data be modified without authorization?
+- I: Is data encrypted at rest? Who has access?
+- D: Can the store be filled to capacity?
+
+**Data Flows (HTTP, gRPC, message queues):**
+- T: Is data integrity checked (TLS, signatures)?
+- I: Is data encrypted in transit?
+- D: Can the flow be interrupted?
+
+### 4. Rank and Mitigate
+
+Use a simple risk matrix: likelihood × impact. Four responses:
+
+- **Mitigate:** Add a control (authentication, encryption, rate limiting)
+- **Eliminate:** Remove the feature or data flow
+- **Transfer:** Pass risk to a third party (insurance, cloud provider SLA)
+- **Accept:** Acknowledge the risk exists and consciously choose not to address it
+
+**Every threat gets one of these four.** "We'll fix it later" is acceptance — be explicit about it.
+
+---
+
+## When to Threat Model
+
+- **During design:** Before a line of code is written. This is the highest-leverage moment — a design change costs hours; a production fix costs weeks.
+- **Before major feature launches:** A new payment flow, a new API integration, a new data pipeline — anything with a new trust relationship.
+- **Annually for existing systems:** Systems change. Your threat model from last year is stale.
+
+---
+
+## Common Mistakes
+
+- **Modeling too much.** Start with a specific feature or component. A model with 100 elements is unreadable.
+- **Skipping trust boundaries.** If every element is in the same trust zone, every STRIDE answer is "not applicable." Trust boundaries are where the model earns its value.
+- **Threat modeling alone.** The best models come from mixed groups: the engineer who built it, a security person, and a product person who knows the business context.
+- **No follow-through.** A threat model without tracked mitigations is security theater. Each threat should have an owner, a mitigation, and a deadline.
+
+---
+
+## Summary
+
+| Step | Action |
+|------|--------|
+| 1. Scope | Define the boundary — what are we modeling? |
+| 2. Draw DFD | External entities, processes, data stores, flows, trust boundaries |
+| 3. STRIDE | For each element crossing a trust boundary, ask all 6 questions |
+| 4. Rank | Likelihood × impact = priority |
+| 5. Mitigate | Mitigate, eliminate, transfer, or accept each threat |
+| 6. Track | Assign owners, deadlines, and verify mitigations |
+
+Threat modeling is a habit, not a project. A team that threat-models every feature during design review builds more secure systems than a team that runs an annual penetration test and nothing else.
+
+---
+
+## Misconception
+
+**Myth:** "Threat modeling is only for security experts — regular developers can't do it."
+
+**Reality:** The best threat models are built by the engineers who know the system best, facilitated by someone who knows the STRIDE questions. The security expertise is in the framework; the system expertise is in the developers. A junior engineer who knows their code can produce a better threat model of their service than a senior security engineer who's never seen it.

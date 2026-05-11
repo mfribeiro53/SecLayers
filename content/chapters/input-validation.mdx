@@ -1,0 +1,166 @@
+# Input Validation & Output Encoding
+
+These are the two most important defensive techniques in application security. They're simple in concept, but misapplied constantly. The distinction matters: **validation checks input before processing; encoding transforms output before rendering.** They solve different problems and must be used together.
+
+<Callout kind="insight">
+**Validate at the boundary, encode at the sink.** Allowlists beat blocklists — the universe of bad inputs grows faster than your list. And remember the asymmetry: validation can catch most attacks but is never enough alone; contextual output encoding is what actually stops XSS, SQLi, and injection at the moment they would have fired.
+</Callout>
+
+---
+
+## Input Validation
+
+Input validation answers: "Does this data conform to what I expect?" It's a correctness check, not a security check — but correctness is security. If your application only accepts integers for a user ID, SQL injection in that parameter becomes impossible.
+
+### Principles
+
+**Allow-lists over block-lists.** Define what valid input looks like — don't try to enumerate every possible attack.
+
+```javascript
+// ❌ Block-list: fragile, always incomplete
+if (input.includes("'") || input.includes("--") || input.includes(";")) {
+  throw new Error("Invalid input");
+}
+
+// ✅ Allow-list: robust, future-proof
+if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+  throw new Error("Username must be 3-20 alphanumeric characters");
+}
+```
+
+Block-lists fail because attackers innovate. When you block `'`, they use `%27`. When you block `%27`, they use `%2527`. An allow-list says "this is what I accept" — anything else is rejected, regardless of encoding.
+
+**Validate at the boundary.** The entry point to your system — the API endpoint, the form handler, the file parser. Once data passes validation, downstream code can trust it. This is called the **trust boundary principle.**
+
+**Type enforcement.** The strongest validation is typing:
+
+```javascript
+const userId = parseInt(req.params.id, 10);
+if (isNaN(userId)) {
+  throw new Error("User ID must be a number");
+}
+```
+
+A parameter that's been cast to `int` cannot contain SQL injection payloads. No regex needed.
+
+**Length limits.** Every input should have a maximum length. This prevents buffer overflows, DoS via giant payloads, and storage exhaustion.
+
+```javascript
+if (comment.length > 5000) {
+  throw new Error("Comment too long");
+}
+```
+
+**Format-specific validation.** Email addresses, URLs, dates, credit card numbers — use well-tested validators, not your own regex:
+
+```javascript
+import isEmail from 'validator/lib/isEmail';
+
+if (!isEmail(email)) {
+  throw new Error("Invalid email");
+}
+```
+
+---
+
+## Output Encoding
+
+Output encoding answers: "How do I safely insert this data into a specific context?" The encoding depends entirely on where the data is going.
+
+### Context-Aware Encoding
+
+The same data needs different encoding depending on context:
+
+| Context | Example | Encoding |
+|---------|---------|----------|
+| HTML body | `<p>${data}</p>` | HTML-encode: `<` → `&lt;`, `>` → `&gt;`, `&` → `&amp;` |
+| HTML attribute | `<input value="${data}">` | HTML-attribute-encode: also escape `"` and `'` |
+| JavaScript string | `var x = '${data}'` | JS-encode: `'` → `\x27`, `\` → `\\` |
+| CSS | `body{color:${data}}` | CSS-encode |
+| URL parameter | `/search?q=${data}` | URL-encode: `encodeURIComponent()` |
+| SQL query | `WHERE name = ${data}` | Parameterize — never encode for SQL |
+
+**Never write your own encoder.** Every framework provides context-specific encoding:
+
+```javascript
+// HTML encoding — use a template engine or framework
+// React: {userInput}  ← auto-encodes
+// Vue: {{ userInput }} ← auto-encodes
+
+// URL encoding
+const encoded = encodeURIComponent(userInput);
+
+// When you must build HTML manually (rarely):
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;  // textContent auto-encodes
+  return div.innerHTML;
+}
+```
+
+### The Wrong Encoding Is Dangerous
+
+HTML-encoding data that goes into a JavaScript string is insufficient:
+
+```javascript
+// ❌ HTML-encoded in JS context — still breaks
+// Input: O'Brien
+// HTML-encoded: O&apos;Brien
+// But in JS: var name = 'O&apos;Brien'; ← the &apos; is literal text in JS
+// Attacker input: \x27;alert(1);//
+// escapes the JS string
+const name = escapeHtml(userInput);
+return `<script>var name = '${name}'</script>`; // ❌ WRONG ENCODING
+```
+
+**Each context requires its own encoding.** Data that crosses multiple contexts needs encoding at each step.
+
+---
+
+## Validation vs Encoding: The Strategy
+
+**Validate input at the boundary. Encode output at the rendering point.**
+
+```
+User Input → [Validate: allow-list, type check] → Trusted Data
+                                                        ↓
+                                             [Encode for context] → Safe Output
+```
+
+Validation reduces attack surface (reject obviously bad input). Encoding prevents injection in the specific output context. **You need both.**
+
+**Validation is not a substitute for encoding.** A valid payload `"><script>alert(1)</script>` passes allow-list checks (it's a valid text string) but is dangerous in an HTML attribute context. Encoding handles this.
+
+**Encoding is not a substitute for validation.** Unvalidated input can cause logic bugs, DoS, or corruption even if it's safely encoded for display.
+
+---
+
+## Common Mistakes
+
+1. **Block-listing instead of allow-listing.** It's always incomplete.
+2. **Encoding too early.** Data is encoded for HTML display, then used in a SQL query — the encoding is wrong and data is corrupted.
+3. **Using the same encoding everywhere.** HTML encoding for JS context is insufficient.
+4. **Validating after processing.** If you parse the input first and validate later, the parser may have already been exploited.
+5. **Skipping server-side validation.** Client-side validation is a UX convenience; server-side validation is a security control. Always validate on the server.
+
+---
+
+## Summary
+
+| Principle | Practice |
+|-----------|----------|
+| Validation method | Allow-lists, not block-lists |
+| Validation location | At the trust boundary — API endpoint, form handler |
+| Strongest validation | Type enforcement (cast to int, parse as date) |
+| Encoding method | Context-aware — HTML, JS, CSS, URL, each different |
+| Encoding location | At the point of output — in the template or renderer |
+| Never | Write your own encoder or sanitizer |
+| Always | Validate server-side, encode at output |
+
+---
+
+## Misconception
+
+**Myth:** "We validate all input with a WAF, so we're safe."
+
+**Reality:** WAFs are signature-based and operate on HTTP traffic — they have no understanding of your application's context. A WAF can't tell if a parameter is being inserted into an HTML attribute or a JavaScript string, and it can't apply the correct encoding. WAFs also miss application-specific logic (e.g., a valid user ID of `99999` that accesses another user's data). Validation and encoding are application responsibilities — a WAF is a safety net, not a solution.

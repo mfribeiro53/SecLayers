@@ -1,0 +1,38 @@
+[
+  {
+    "id": "sdlc-junior-01",
+    "question": "What is the Secure SDLC and what does 'shift-left' mean?",
+    "answer": "The Secure SDLC integrates security activities into every phase of software development — from requirements through operations. 'Shift-left' means moving security work earlier in the development process, where fixes cost less and have more impact. A design flaw caught during threat modeling costs an hour; the same flaw caught in production can cost millions.",
+    "category": "junior"
+  },
+  {
+    "id": "sdlc-junior-02",
+    "question": "What is the difference between SAST and DAST?",
+    "answer": "SAST (Static Application Security Testing) scans source code without running the application. It finds patterns like SQL string concatenation and hardcoded secrets. Run in CI/CD on every push. Examples: Semgrep, CodeQL.\n\nDAST (Dynamic Application Security Testing) scans the running application by sending attack payloads. It finds vulnerabilities that only exist at runtime, like authentication bypass and business logic flaws. Run against staging environments. Examples: OWASP ZAP, Burp Suite.",
+    "category": "junior"
+  },
+  {
+    "id": "sdlc-mid-01",
+    "question": "What security activities should happen during the Development phase of the SDLC?",
+    "answer": "1. Secure coding standards — team agreement on patterns: parameterized queries, output encoding, input validation, no hardcoded secrets.\n2. SAST — static analysis in CI/CD on every push (Semgrep, CodeQL).\n3. SCA — dependency scanning for known CVEs (Dependabot, Snyk).\n4. Secret scanning — detect hardcoded secrets before they reach the repo (TruffleHog, git-secrets).\n5. Security code review — every PR checked for security issues, not just functionality. Use checklists.\n\nGate: SAST/SCA/secret scan passing in CI/CD. High-severity findings resolved or waived with justification.",
+    "category": "mid"
+  },
+  {
+    "id": "sdlc-mid-02",
+    "question": "What is the purpose of Infrastructure as Code (IaC) scanning and when should it run?",
+    "answer": "IaC scanning detects misconfigurations in Terraform, CloudFormation, Dockerfiles, and Kubernetes manifests before they're deployed. It checks for: open S3 buckets, overly permissive IAM policies, unencrypted data stores, exposed ports, containers running as root.\n\nIt should run in CI/CD on every infrastructure change, before deployment. Tools: Checkov, tfsec, Trivy. IaC scanning prevents configuration drift — the same scan that blocks a bad Terraform change in CI prevents that configuration from reaching production.",
+    "category": "mid"
+  },
+  {
+    "id": "sdlc-senior-01",
+    "question": "How would you build a security champion program to scale the Secure SDLC across multiple engineering teams?",
+    "answer": "A security champion program embeds security knowledge within engineering teams:\n\n1. Selection — one volunteer per team who's interested in security. Not a full-time role — ~10% of their time.\n2. Training — monthly workshops on threat modeling, secure coding, tool usage. Build a shared Slack channel for Q&A.\n3. Responsibilities — champions run threat models for their team's features, review PRs with a security lens, triage SAST/DAST findings, and escalate complex issues to the central security team.\n4. Empowerment — champions have authority to block deployments for critical security issues. This is backed by leadership.\n5. Measurement — track: number of threat models completed, SAST findings resolved before merge, vulnerabilities caught in design vs production.\n6. Recognition — make champion work visible in performance reviews. It's career development, not extra work.\n\nKey principle: the central security team builds tools, standards, and training; champions apply them in their team's context. This scales security without scaling the security team.",
+    "category": "senior"
+  },
+  {
+    "id": "sdlc-senior-02",
+    "question": "Compare the cost and effectiveness of finding vulnerabilities at each SDLC phase. Where should a resource-constrained team invest first?",
+    "answer": "Cost to fix a vulnerability by phase:\n- Requirements: $1 (change a document)\n- Design: $10 (update architecture)\n- Development: $100 (rewrite code)\n- Testing: $1,000 (fix + retest + redeploy)\n- Deployment: $10,000 (rollback, re-deploy, incident)\n- Operations: $100,000+ (breach response, legal, reputation)\n\nFor a resource-constrained team, invest in order:\n1. Threat modeling in design — highest leverage. Finds design flaws that code review and tools miss. One hour of threat modeling can prevent weeks of remediation.\n2. SAST in CI/CD — automated, low ongoing cost, catches the most common vulnerability patterns (SQLi, XSS, hardcoded secrets).\n3. Dependency scanning (SCA) — automated, catches CVEs in third-party code you didn't write.\n4. Security code review checklists — low cost, builds culture.\n5. DAST in staging — finds runtime issues but requires a running environment.\n6. Penetration testing — expensive but finds business logic flaws that tools miss. Annual for critical systems.\n\nThe pattern: invest in automated, early-phase activities first. They prevent vulnerabilities rather than detecting them later.",
+    "category": "senior"
+  }
+]

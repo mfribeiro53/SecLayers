@@ -1,0 +1,112 @@
+# SSRF (Server-Side Request Forgery)
+
+SSRF is the vulnerability where an attacker tricks a server into making requests to unintended locations. The server becomes a proxy — the attacker tells it what URL to fetch, and the server fetches it from its internal network position.
+
+This matters because servers sit in privileged network positions. A server can reach internal services (metadata endpoints, admin panels, databases) that an attacker on the internet cannot reach directly. SSRF turns the server into a trusted intermediary.
+
+<Callout kind="insight">
+An SSRF turns your server into the attacker's proxy. It can reach internal IPs, speak to cloud metadata services with your IAM role, and bypass firewalls that trust your source address. **Blocklists fail** (decimal/octal/hex IPs, DNS rebinding, redirects); allowlists, post-resolution IP checks, IMDSv2, and least-privilege roles are what actually contain it.
+</Callout>
+
+---
+
+## How It Works
+
+**Scenario:** A web app has a "preview link" feature:
+
+```
+POST /api/preview
+{"url": "https://example.com"}
+```
+
+The server fetches the URL and returns a preview. An attacker sends:
+
+```json
+{"url": "http://169.254.169.254/latest/meta-data/iam/security-credentials/"}
+```
+
+This is the AWS metadata endpoint — accessible only from within the EC2 instance. The server is on EC2, so it can reach it. The response contains IAM credentials with the server's permissions. The attacker now has AWS access.
+
+**The pattern:** user supplies a URL → server fetches it → attacker reads the response or observes side effects.
+
+---
+
+## Attack Surfaces
+
+| Target | Example URL | What's at Risk |
+|--------|-------------|----------------|
+| Cloud metadata | `http://169.254.169.254/` (AWS, GCP, Azure) | IAM credentials, tokens |
+| Internal APIs | `http://internal-admin:8080/users` | Admin access, data |
+| Local services | `http://localhost:6379/` (Redis) | Database access |
+| File system | `file:///etc/passwd` | Local files |
+| Port scanning | `http://10.0.0.1:22/` | Network mapping |
+
+---
+
+## SSRF Types
+
+### Basic SSRF
+
+Response is returned to the attacker. The attacker can read the full response body.
+
+### Blind SSRF
+
+The request executes but the attacker cannot see the response. Still useful for:
+- Port scanning (response time differences)
+- Triggering actions (calling webhooks, hitting admin endpoints)
+- Out-of-band exfiltration (making the server callback to attacker's domain)
+
+---
+
+## Defenses
+
+### 1. Allow-List URLs
+
+The strongest defense: only permit known URLs.
+
+```javascript
+const ALLOWED_URLS = [
+  "https://api.trusted.com",
+  "https://cdn.example.com"
+];
+
+if (!ALLOWED_URLS.some(a => url.startsWith(a))) {
+  throw new Error("URL not allowed");
+}
+```
+
+### 2. Block Internal IPs / Schemes
+
+At minimum, block:
+- `127.0.0.0/8` (localhost)
+- `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (private)
+- `169.254.0.0/16` (cloud metadata)
+- `file://`, `gopher://`, `dict://` schemes
+
+**DNS rebinding bypasses hostname checks.** An attacker registers `evil.com` pointing to public IP. After the hostname is validated, DNS changes to `127.0.0.1`. Defense: resolve hostname once and validate the resolved IP.
+
+### 3. Network Segmentation
+
+Run the server in a network segment that cannot reach internal services. Use a proxy for outbound requests that enforces access controls.
+
+---
+
+## Summary
+
+| Defense | Priority |
+|---------|----------|
+| Allow-list URLs | Primary |
+| Block private IPs | Secondary |
+| Block dangerous schemes | Secondary |
+| Network segmentation | Defense-in-depth |
+| Never return raw response | Reduces blind SSRF to basic |
+
+SSRF is the successor to SQLi — it's the most impactful vulnerability in cloud-native applications because of metadata endpoints.
+
+---
+
+## Misconception
+
+**Myth:** "We validate the URL starts with https://, so we're safe from SSRF."
+
+**Reality:** HTTPS only ensures the connection is encrypted — it says nothing about where the request goes. `https://169.254.169.254` is a valid HTTPS URL on some cloud platforms. URL validation must check where the request resolves, not just the protocol scheme.

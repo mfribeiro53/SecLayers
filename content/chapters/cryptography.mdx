@@ -1,0 +1,191 @@
+# Cryptography for Developers
+
+Cryptography is the foundation of digital trust — and the most dangerous domain for well-intentioned developers to DIY. The rule is simple: **never roll your own crypto.** But you still need to know which primitives to use, when, and what the common failure modes look like.
+
+This chapter covers what a developer needs to know: hashing, symmetric and asymmetric encryption, AEAD, key management, and the mistakes that turn strong crypto into no crypto.
+
+<Callout kind="insight">
+The dangerous mistakes aren't broken algorithms — they're misused primitives. ECB mode leaks structure, reused nonces in AES-GCM leak the XOR of two plaintexts, SHA-256 for passwords lets an attacker try billions per second. **Choose AEAD (AES-GCM, ChaCha20-Poly1305) for encryption, Argon2 or bcrypt for passwords, and never roll the construction yourself.**
+</Callout>
+
+---
+
+## Hashing vs Encryption
+
+This distinction trips up beginners constantly:
+
+| Property | Hashing | Encryption |
+|----------|---------|------------|
+| Reversible? | No (one-way) | Yes (with key) |
+| Key required? | No | Yes |
+| Output size | Fixed | Variable (≈ input) |
+| Use case | Password storage, integrity | Confidentiality |
+| Example | SHA-256, bcrypt | AES-GCM, ChaCha20 |
+
+**A hash takes arbitrary input and produces a fixed-size, unique-looking output.** The same input always produces the same hash. You cannot recover the input from the hash — it's a one-way function.
+
+**Encryption takes plaintext and a key and produces ciphertext.** With the correct key, you can decrypt the ciphertext back to plaintext. Without the key, the ciphertext is unreadable.
+
+---
+
+## Hashing in Practice
+
+### Password Hashing
+
+**Never use SHA-256 for passwords.** SHA-256 is designed to be fast — attackers can try billions of guesses per second on a GPU.
+
+Use **bcrypt**, **scrypt**, or **Argon2** — they're deliberately slow and memory-hard:
+
+```javascript
+// Node.js with bcrypt
+const bcrypt = require('bcrypt');
+const hash = await bcrypt.hash(password, 12); // 12 salt rounds
+const match = await bcrypt.compare(password, hash);
+```
+
+**Key concept — salt:** A random value added to each password before hashing. Without salt, two users with the same password have the same hash — the attacker cracks one and gets both. With salt, every hash is unique.
+
+**Key concept — work factor:** The bcrypt cost (12 in the example) controls how CPU-intensive the hash is. Increase it every few years as hardware improves.
+
+### Integrity Hashing
+
+For file integrity, API request signing, and blockchain: use **SHA-256**.
+
+```javascript
+// Web Crypto API
+const data = new TextEncoder().encode('hello');
+const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+```
+
+SHA-256 is fast by design — that's what you want for integrity checks, but not for passwords.
+
+---
+
+## Symmetric Encryption
+
+Same key encrypts and decrypts. Fast. Use for bulk data.
+
+### AES (Advanced Encryption Standard)
+
+The standard. Comes in key sizes: AES-128, AES-192, AES-256. Longer keys are harder to brute-force — but AES-128 is already computationally infeasible to break with current technology.
+
+**Critical: Never use AES in ECB mode.**
+
+**ECB (Electronic Codebook):** Each block is encrypted independently with the same key. Identical plaintext blocks produce identical ciphertext blocks — revealing patterns in the data.
+
+The famous "ECB penguin": encrypt an image of a penguin with AES-ECB and the penguin is still clearly visible in the ciphertext. The encryption leaks the structure.
+
+**Always use an authenticated mode:**
+- **AES-GCM:** Galois/Counter Mode. The standard choice — fast, authenticated, widely supported.
+- **ChaCha20-Poly1305:** A modern alternative. Faster on mobile (no AES hardware acceleration required).
+
+```javascript
+// AES-GCM on Web Crypto API
+const key = await crypto.subtle.generateKey(
+  { name: 'AES-GCM', length: 256 },
+  true,
+  ['encrypt', 'decrypt']
+);
+const iv = crypto.getRandomValues(new Uint8Array(12)); // 96-bit nonce
+const encrypted = await crypto.subtle.encrypt(
+  { name: 'AES-GCM', iv },
+  key,
+  new TextEncoder().encode('secret message')
+);
+```
+
+**Key concept — IV/nonce:** A random or sequential value that ensures the same plaintext encrypted with the same key produces different ciphertext. **Never reuse an IV with the same key in AES-GCM** — it completely breaks the encryption.
+
+**Key concept — authentication tag:** AES-GCM produces an authentication tag alongside the ciphertext. This proves the ciphertext hasn't been tampered with — GCM is "authenticated encryption" (AEAD). If someone flips a bit in the ciphertext, decryption fails.
+
+---
+
+## Asymmetric Encryption
+
+Different keys for encryption and decryption. A **public key** encrypts; a **private key** decrypts. Slower than symmetric — use for key exchange and signatures, not bulk data.
+
+### RSA
+
+The original. Key sizes: 2048-bit minimum, 4096-bit for long-term security.
+
+```javascript
+const keyPair = await crypto.subtle.generateKey(
+  { name: 'RSA-OAEP', modulusLength: 2048, hash: 'SHA-256' },
+  true,
+  ['encrypt', 'decrypt']
+);
+```
+
+RSA-OAEP (Optimal Asymmetric Encryption Padding) is the safe RSA mode. **Never use raw RSA** (textbook RSA) — it's vulnerable to multiple attacks.
+
+### Elliptic Curve (ECC)
+
+Smaller keys, same security. ECDH for key exchange, ECDSA for signatures.
+
+- Curve25519: Modern, fast, designed to be misuse-resistant. Use this.
+- P-256 (secp256r1): NIST standard. Widely supported, slightly slower.
+
+---
+
+## Common Crypto Mistakes
+
+### 1. ECB Mode
+
+Already covered. If you see `AES/ECB` in a codebase, flag it immediately. This is not a subtle bug — it's a complete failure of confidentiality.
+
+### 2. Nonce Reuse
+
+AES-GCM and ChaCha20-Poly1305 use a nonce (number used once). Reusing a nonce with the same key **leaks the XOR of the two plaintexts** — and often allows full plaintext recovery. This took down real systems.
+
+**Always generate a fresh random nonce for every encryption operation.** 96 bits (12 bytes) is standard for AES-GCM.
+
+### 3. Weak Randomness
+
+`Math.random()` is not cryptographically secure. It's predictable — an attacker who knows the algorithm and a few outputs can predict future outputs.
+
+Always use `crypto.getRandomValues()` (browser) or `crypto.randomBytes()` (Node.js).
+
+### 4. Custom Protocol Design
+
+"Let's just XOR the data with a password" or "I'll design my own key exchange." No. TLS 1.3 exists. Use it. Signal Protocol exists. Use it. The gap between what a single developer can design and what the cryptographic community has vetted is measured in decades of research.
+
+### 5. Hardcoded Keys
+
+A key in source code is not a secret — it's in version control, CI logs, and every developer's laptop. Use a key management service (AWS KMS, HashiCorp Vault) or environment variables.
+
+---
+
+## When to Use What
+
+| Need | Primitive |
+|------|-----------|
+| Store passwords | bcrypt / Argon2 (with salt) |
+| File integrity | SHA-256 |
+| HTTP request signing | HMAC-SHA256 |
+| Encrypt data at rest | AES-256-GCM |
+| TLS replacement | Don't. Use TLS 1.3 |
+| Encrypt message to specific recipient | ECDH key exchange + AES-GCM |
+| Digital signatures | ECDSA (Curve25519) or RSA-2048 |
+| Generate tokens | `crypto.randomBytes(32).toString('hex')` |
+
+---
+
+## Summary
+
+| Rule | Explanation |
+|------|-------------|
+| Never roll your own crypto | Use well-vetted libraries and protocols |
+| Hash passwords with bcrypt/Argon2 | Never SHA-256, never MD5 |
+| Use authenticated encryption | AES-GCM or ChaCha20-Poly1305 |
+| Never reuse nonces | Fresh random nonce per encryption |
+| Use cryptographically secure RNG | `crypto.getRandomValues()`, not `Math.random()` |
+| Keys are secrets | Never in source code. Use a KMS |
+| ECB mode is broken | If you see AES/ECB, sound the alarm |
+
+---
+
+## Misconception
+
+**Myth:** "We use AES-256, so our encryption is unbreakable."
+
+**Reality:** The algorithm strength means nothing if the implementation is flawed. AES-256 in ECB mode reveals data patterns. AES-256-GCM with a reused nonce leaks plaintext. AES-256 with a hardcoded key in a public GitHub repo is not encrypted at all. **Algorithm choice is the least important crypto decision.** Key management, mode selection, nonce handling, and RNG quality matter far more.

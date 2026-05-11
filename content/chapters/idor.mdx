@@ -1,0 +1,170 @@
+# IDOR & Access Control
+
+Insecure Direct Object Reference (IDOR) is the simplest vulnerability to understand and one of the hardest to eliminate at scale. The attacker changes an identifier in a request — a user ID, an order number, a file path — and accesses data they shouldn't see.
+
+IDOR is not a bug in code. It's an **absence of an authorization check.** The application trusts that a user who requests `/api/orders/123` is authorized to see order 123. An attacker changes it to `/api/orders/124` and sees someone else's order. No exploit payload, no special tools — just a URL change.
+
+<Callout kind="insight">
+**Authentication is not authorization.** "You're logged in" doesn't mean "you may access this specific resource." UUIDs don't fix IDOR — they make IDs harder to guess, but the check is still missing. Every resource fetch must independently verify the caller can read or write that exact object. Centralize the check so it's hard to forget.
+</Callout>
+
+---
+
+## How It Works
+
+**Scenario:** A banking app shows account details at:
+
+```
+GET /api/accounts/4567
+```
+
+Alice (account 4567) sees her balance. She changes the URL to:
+
+```
+GET /api/accounts/4568
+```
+
+The server returns Bob's balance, transaction history, and personal details. **The server never checked whether Alice owns account 4568.**
+
+The flaw: the application uses the account ID directly from the URL (`req.params.accountId`) and queries the database with it — without verifying that `req.user.id` has permission to access that account.
+
+---
+
+## Where IDOR Lives
+
+IDOR appears wherever identifiers are exposed and authorization is missing:
+
+| Pattern | Example | Missing Check |
+|---------|---------|---------------|
+| Sequential IDs | `/users/1`, `/users/2`, `/users/3` | Is the requester user 3? |
+| UUIDs | `/documents/abc-123-def` | Does the requester own this document? |
+| File paths | `/downloads/invoice_2024.pdf` | Is the requester the invoice recipient? |
+| Query params | `/export?reportId=42` | Can the requester access report 42? |
+| Body params | `{"orderId": 789}` | Does the requester own order 789? |
+
+**UUIDs are not a defense.** They prevent enumeration (you can't guess the next UUID), but they don't prevent access if an ID is leaked (email, screenshot, Referer header, browser history). Authorization is the only defense.
+
+---
+
+## Access Control Models
+
+Understanding IDOR requires understanding access control:
+
+### Discretionary Access Control (DAC)
+
+The resource owner controls access. "Alice shares this document with Bob." Unix file permissions (`chmod 644`) are DAC.
+
+### Mandatory Access Control (MAC)
+
+A central policy controls access. "Users with SECRET clearance can read SECRET documents." SELinux and classified government systems use MAC.
+
+### Role-Based Access Control (RBAC)
+
+Permissions are assigned to roles, not users. "Admins can delete users. Managers can view reports. Users can edit their own profile." Most web applications use RBAC.
+
+### Attribute-Based Access Control (ABAC)
+
+Access decisions use attributes: "Users in the Finance department can approve Purchase Orders over $10,000, during business hours, from their corporate IP range."
+
+---
+
+## Defenses
+
+### 1. Ownership Checks
+
+The fundamental IDOR defense. Before returning a resource, verify the requester owns it.
+
+```javascript
+// ❌ No ownership check — IDOR
+const order = await db.orders.findById(req.params.id);
+res.json(order);
+
+// ✅ Ownership check
+const order = await db.orders.findOne({
+  where: { id: req.params.id, userId: req.user.id }
+});
+if (!order) return res.status(404).json({ error: "Not found" });
+res.json(order);
+```
+
+**Return 404, not 403.** If you return 403 (Forbidden), you confirm the resource exists — enabling enumeration. Return 404 (Not Found) regardless of whether the ID exists but is unauthorized, or doesn't exist at all.
+
+### 2. Indirect Reference Maps
+
+Instead of exposing database IDs, use per-session mappings:
+
+```javascript
+// Server maintains a map for each user session
+// Session { user: 123, allowedOrders: [1, 5, 12] → mapped to [0, 1, 2] }
+// Client sees: /api/orders/0 → server resolves to order 1
+// Client tries: /api/orders/3 → out of range → 404
+```
+
+This prevents enumeration entirely — the attacker can't guess valid IDs because the mapping is per-session. ESAPI and OWASP libraries provide reference map implementations.
+
+### 3. Authorization Middleware
+
+Centralize authorization checks instead of scattering them across handlers:
+
+```javascript
+function requireOwnership(model, paramField, ownerField) {
+  return async (req, res, next) => {
+    const resource = await model.findById(req.params[paramField]);
+    if (!resource || resource[ownerField] !== req.user.id) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    req.resource = resource;
+    next();
+  };
+}
+
+app.get('/api/orders/:id', requireOwnership(Order, 'id', 'userId'), handler);
+```
+
+One middleware, applied everywhere. No developer needs to remember to add the check — it's enforced by the framework.
+
+### 4. Horizontal vs Vertical Access Control
+
+**Horizontal:** User A accessing User B's data at the same privilege level. IDOR is the attack vector. Defense: ownership checks.
+
+**Vertical:** Regular user accessing admin functionality. Defense: role checks.
+
+**Context-dependent:** User accessing data they're authorized for, but in the wrong context. A doctor accessing a patient's records (authorized), but the patient isn't assigned to them (unauthorized). Defense: ownership checks with context.
+
+---
+
+## Testing for IDOR
+
+**Manual approach:**
+1. Log in as User A. Note the ID of a resource they own.
+2. Create User B and note the ID of a resource they own.
+3. As User A, try to access User B's resource by changing the ID in the URL.
+4. If User A can see User B's data, IDOR exists.
+5. Repeat for every endpoint that accepts identifiers.
+
+**Automated tools:**
+- **Burp Suite Autorize plugin:** Automatically replays requests with a different user's session cookie and compares responses.
+- **Burp Intruder:** Iterate through sequential IDs and check for differing responses.
+
+---
+
+## Summary
+
+| Principle | Practice |
+|-----------|----------|
+| Primary defense | Ownership check on every resource access |
+| Middleware | Centralize authorization — don't scatter checks |
+| Response code | Return 404 for unauthorized resources (not 403) |
+| Reference maps | Per-session ID mappings prevent enumeration |
+| UUIDs | Help prevent enumeration but don't replace authorization |
+| Testing | Create two users, cross-check resource access |
+
+IDOR is not complex. It's just missing. The fix is always the same: **before returning a resource, verify the requester is authorized to see it.** Every endpoint that accepts an identifier needs this check.
+
+---
+
+## Misconception
+
+**Myth:** "We use UUIDs instead of sequential IDs, so we're safe from IDOR."
+
+**Reality:** UUIDs prevent an attacker from guessing valid identifiers by incrementing numbers. But IDs leak constantly — in emails, screenshots, browser history, Referer headers, shared links, and API responses from other endpoints. Once an attacker has a valid UUID (from any source), an IDOR vulnerability gives them access. UUIDs are security by obscurity — a speed bump, not a wall. Always add authorization checks.

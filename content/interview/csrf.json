@@ -1,0 +1,50 @@
+[
+  {
+    "id": "csrf-junior-01",
+    "question": "What is Cross-Site Request Forgery (CSRF)?",
+    "answer": "CSRF is an attack that tricks a victim's browser into making an unwanted request to a site where the victim is authenticated. The attacker's site (evil.com) contains a form that submits to bank.com — the victim's browser automatically attaches the bank.com session cookie, and bank.com processes the request as if the victim intended it. CSRF exploits the browser's automatic cookie behavior: cookies are sent with every request to their origin, regardless of which site initiated the request.",
+    "category": "junior"
+  },
+  {
+    "id": "csrf-junior-02",
+    "question": "How do anti-CSRF tokens prevent CSRF?",
+    "answer": "The server generates a random token, stores it in the user's session, and embeds it in every form as a hidden field. When the form is submitted, the server verifies that the submitted token matches the session token. The attacker cannot read the token because of the Same-Origin Policy — evil.com cannot read the token from bank.com's pages to include it in a forged form. Without the correct token, the server rejects the request.",
+    "category": "junior"
+  },
+  {
+    "id": "csrf-mid-01",
+    "question": "Explain the three SameSite cookie values and when to use each.",
+    "answer": "SameSite=Strict: Cookies are never sent on any cross-site request. Even clicking a link from another site arrives without cookies (user appears logged out). Maximum security, but poor UX — the user must re-authenticate after following any external link. Rarely used in practice.\n\nSameSite=Lax: Cookies are sent on top-level GET navigations (clicking a link), but NOT on cross-site POST requests or subresource loads (images, iframes). This is the modern default and the recommended value for most sites. It blocks CSRF while preserving normal link navigation.\n\nSameSite=None: Cookies are sent on all cross-site requests (pre-2019 behavior). Must be paired with the Secure flag (HTTPS only). Use only when you need cross-site integration (OAuth flows, embedded widgets, third-party payment pages).",
+    "category": "mid"
+  },
+  {
+    "id": "csrf-mid-02",
+    "question": "Why should state-changing operations never use GET requests?",
+    "answer": "GET requests are trivial to forge via CSRF — a simple <img> tag is enough: <img src=\"https://bank.com/transfer?to=attacker&amount=10000\">. No form, no JavaScript, no user interaction beyond viewing the page. Browsers also prefetch GET URLs, may cache them, and log them in server access logs with parameters (leaking sensitive data). GET should be safe (no side effects) and idempotent (repeated calls produce the same result). Use POST, PUT, or DELETE for state changes, and protect those with CSRF defenses.",
+    "category": "mid"
+  },
+  {
+    "id": "csrf-mid-03",
+    "question": "How can custom request headers prevent CSRF in SPAs?",
+    "answer": "JavaScript can set custom HTTP headers (e.g., X-Requested-With: XMLHttpRequest, or Content-Type: application/json), but HTML forms cannot. If the server requires a custom header for state-changing requests, CSRF via simple form submission is blocked.\n\nImplementation: the SPA sets a custom header on all API requests, and the server middleware validates it. This works well for JSON APIs consumed by SPAs.\n\nLimitations: CORS misconfigurations can allow cross-site JavaScript to set custom headers. This defense only works if your CORS policy correctly restricts cross-origin requests. It should be used alongside SameSite cookies for defense-in-depth.",
+    "category": "mid"
+  },
+  {
+    "id": "csrf-senior-01",
+    "question": "Design a comprehensive CSRF defense strategy for a web application with both server-rendered pages and a JSON API.",
+    "answer": "Server-rendered pages (traditional forms, no JS required):\n- Anti-CSRF tokens in all forms. Per-session tokens, generated server-side, validated on POST/PUT/DELETE.\n- Token embedded as hidden field in HTML forms.\n- Token validated by middleware — reject requests without valid token.\n- Regenerate token on authentication (login/logout) to prevent session fixation + CSRF.\n\nJSON API (consumed by SPA):\n- Require custom header: X-Requested-With: XMLHttpRequest or Content-Type: application/json on state-changing endpoints.\n- Alternatively, use a header-based CSRF token pattern: server sets XSRF-TOKEN cookie (readable by JS), SPA reads it and sends it back in X-XSRF-TOKEN header. Server verifies match.\n\nShared:\n- Set SameSite=Lax on session cookies.\n- Validate Origin header as supplementary check.\n- Never use GET for state changes.\n- Strict CORS policy — only allow your domain.\n- Fix XSS — because XSS reads CSRF tokens and bypasses all defenses.",
+    "category": "senior"
+  },
+  {
+    "id": "csrf-senior-02",
+    "question": "How does XSS break CSRF defenses? What should you do about it?",
+    "answer": "CSRF defenses assume the attacker can make requests from the victim's browser but cannot read the response from the target site (Same-Origin Policy). XSS breaks this assumption — injected JavaScript runs in the target site's origin and can:\n1. Read anti-CSRF tokens from the DOM (they're in hidden form fields).\n2. Read double-submit cookie values (document.cookie).\n3. Set custom headers for JSON API requests.\n4. Bypass all Same-Origin Policy restrictions.\n\nMitigation: XSS and CSRF must be defended independently. Fix XSS with context-aware output encoding, CSP, and Trusted Types. Defense-in-depth matters — SameSite=Lax still protects users even if XSS exists, because the injected script can't cause the browser to attach cookies on cross-site requests (though it can make same-site requests). httpOnly cookies prevent the attacker from exfiltrating the session token, but they can still make authenticated requests. The goal is to make XSS harder to exploit, not to rely on CSRF defenses surviving XSS.",
+    "category": "senior"
+  },
+  {
+    "id": "csrf-senior-03",
+    "question": "Compare anti-CSRF tokens, SameSite cookies, and the double-submit cookie pattern. What are the trade-offs?",
+    "answer": "Anti-CSRF Tokens (session-based): Server stores token in session, embeds in forms, validates on submit. Pros: Most robust — token is unpredictable and tied to session. Cons: Requires server-side state (session storage). Breaks if the application is stateless.\n\nSameSite Cookies: Browser-level defense. No application code needed. Pros: Zero implementation effort, works transparently. Cons: Supported only in modern browsers. Breaks cross-site integrations (OAuth, payment widgets) without SameSite=None. Should be defense-in-depth, not the only defense.\n\nDouble-Submit Cookie: Server sets a cookie with a random value; JS reads it and includes it in a request header; server compares. Pros: Stateless — no server-side token storage. Cons: Vulnerable to subdomain takeover (attacker controlling sub.example.com can set cookies for example.com). Relies on the attacker's inability to set cookies — which is not a guarantee with HSTS misconfigurations or network attackers on HTTP. Less robust than session-based tokens.\n\nRecommendation: Use session-based anti-CSRF tokens as primary defense. Add SameSite=Lax as defense-in-depth. Use double-submit cookies only when statelessness is a hard requirement.",
+    "category": "senior"
+  }
+]

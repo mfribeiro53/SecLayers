@@ -1,0 +1,38 @@
+[
+  {
+    "id": "api-auth-junior-01",
+    "question": "What is OAuth 2.0 and how does it differ from authentication?",
+    "answer": "OAuth 2.0 is an authorization framework — it lets a user grant a third-party application limited access to their resources on another service without sharing their password. It answers \"what can this app do on my behalf?\", not \"who is this user?\".\n\nAuthentication answers \"who are you?\" — typically with a password, biometric, or certificate. OpenID Connect (OIDC) sits on top of OAuth 2.0 and adds an id_token to provide authentication. A common mistake is using a raw OAuth access_token as proof of identity (\"login with X\"); the access_token may belong to a different client and was not minted as proof of who the user is — use OIDC's id_token instead.",
+    "category": "junior"
+  },
+  {
+    "id": "api-auth-junior-02",
+    "question": "What are the main OAuth 2.0 grant types and when is each appropriate?",
+    "answer": "Authorization Code: The default for web and mobile apps. The client receives a short-lived code via redirect, then exchanges it server-to-server for tokens. Use with PKCE for public clients.\n\nAuthorization Code + PKCE: Required for any public client (mobile, SPA) that can't keep a client_secret. Replaces the client_secret with a per-request code_verifier/code_challenge pair.\n\nClient Credentials: Machine-to-machine — a backend service authenticates itself with its own credentials. No user involved.\n\nRefresh Token: Used after another grant to obtain new access tokens without re-prompting the user.\n\nDeprecated: Implicit grant (tokens in the URL fragment — bypassed by Authorization Code + PKCE) and Resource Owner Password Credentials (the app sees the user's password — defeats the point of OAuth).",
+    "category": "junior"
+  },
+  {
+    "id": "api-auth-mid-01",
+    "question": "Walk through the Authorization Code flow with PKCE step by step.",
+    "answer": "1. Client generates a random code_verifier (43-128 chars) and a code_challenge = BASE64URL(SHA256(code_verifier)).\n\n2. Client redirects the user to the authorization server: /authorize?response_type=code&client_id=...&redirect_uri=...&code_challenge=...&code_challenge_method=S256&state=...&scope=....\n\n3. User authenticates and consents at the authorization server.\n\n4. Authorization server redirects back to redirect_uri with ?code=...&state=....\n\n5. Client verifies state matches what it sent (CSRF protection).\n\n6. Client POSTs to /token with grant_type=authorization_code, code, redirect_uri, code_verifier, and client_id.\n\n7. Authorization server recomputes SHA256(code_verifier), compares to the stored code_challenge, and if it matches, returns access_token (and optionally refresh_token, id_token).\n\nWhy PKCE matters: even if an attacker intercepts the authorization code (e.g., via a malicious mobile app that registers the same custom URL scheme), they can't redeem it without the code_verifier — which never left the legitimate client.",
+    "category": "mid"
+  },
+  {
+    "id": "api-auth-mid-02",
+    "question": "What is the state parameter for, and what breaks if you omit it?",
+    "answer": "state is a random, unguessable value the client generates before redirecting to the authorization server and verifies on the callback. It serves two purposes:\n\n1. CSRF protection: An attacker can't trick a logged-in victim into linking the attacker's account by sending them a crafted authorization callback URL — because the attacker can't predict state.\n\n2. Application state: Some clients encode a return URL or transaction ID in state so they can resume the user's flow post-login.\n\nWithout state, an attacker can initiate an authorization flow with their own account, intercept the redirect, and trick the victim's browser into completing the callback. The victim's account ends up linked to the attacker's social identity, or the victim ends up logged in as the attacker — letting the attacker observe everything the victim does next. state must be cryptographically random, bound to the user's session, and verified server-side on callback.",
+    "category": "mid"
+  },
+  {
+    "id": "api-auth-senior-01",
+    "question": "How do you securely handle refresh tokens in a single-page application?",
+    "answer": "The honest answer: you mostly don't store them in the SPA. Any token in browser-accessible storage (localStorage, IndexedDB, or even an in-memory JS variable) is reachable by XSS.\n\nRecommended pattern — Backend for Frontend (BFF):\n1. The SPA never holds the refresh_token. The browser only ever has a httpOnly, Secure, SameSite=Lax session cookie tied to the BFF.\n2. The BFF holds the refresh_token server-side (keyed by session ID).\n3. The BFF mints short-lived access_tokens (or proxies API calls itself), and silently refreshes server-side.\n\nIf you must hold tokens in the browser:\n- Keep the access_token in memory only (not localStorage). It dies on tab refresh — accept that.\n- Use refresh token rotation: every refresh issues a new refresh_token and invalidates the old one. If the same refresh_token is presented twice, treat it as compromise — revoke the entire token family.\n- Bind tokens to a device fingerprint or DPoP/MTLS proof-of-possession so a stolen token is useless off-device.\n- Set short access_token lifetimes (5-15 min) and short idle timeouts on refresh_tokens.\n- Layer with strong CSP and Trusted Types — XSS is the real threat model here.",
+    "category": "senior"
+  },
+  {
+    "id": "api-auth-senior-02",
+    "question": "Explain redirect_uri validation pitfalls and how attackers abuse loose matching.",
+    "answer": "redirect_uri tells the authorization server where to send the authorization code. If validation is sloppy, an attacker can exfiltrate codes to a server they control.\n\nCommon mistakes:\n1. Substring/prefix matching: allowing https://app.example.com/cb* matches https://app.example.com/cb.attacker.com.\n2. Open redirector on the same origin: if /redirect?to= on the legitimate domain follows arbitrary URLs, an attacker registers redirect_uri=https://app.example.com/redirect?to=https://attacker.com and the code is bounced to them after issuance.\n3. Path traversal / encoding tricks: %2e%2e, double-encoded slashes, or fragment manipulation that bypasses naive string matchers.\n4. Wildcard subdomains: *.example.com accepts attacker.example.com if subdomains can be registered (e.g., by users, takeover of an unused CNAME).\n5. Differing schemes: allowing both http:// and https:// — the attacker MITMs the http version.\n6. localhost loopback abuse on desktop apps: tighten port matching for installed apps.\n\nDefense: require exact-match registered redirect_uris (full string, including query). Disallow wildcards. Audit your domain for open redirects. For mobile apps, prefer claimed HTTPS app links over custom URL schemes (which any app can register).",
+    "category": "senior"
+  }
+]

@@ -1,0 +1,50 @@
+[
+  {
+    "id": "sqli-junior-01",
+    "question": "What is SQL Injection?",
+    "answer": "SQL Injection (SQLi) is a vulnerability that occurs when an attacker can insert malicious SQL code into an application's database query. It happens when user input is concatenated directly into SQL statements without proper sanitization or parameterization. This allows attackers to read, modify, or delete database contents, bypass authentication, and in some cases execute operating system commands on the database server.",
+    "category": "junior"
+  },
+  {
+    "id": "sqli-junior-02",
+    "question": "How do parameterized queries prevent SQL injection?",
+    "answer": "Parameterized queries (also called prepared statements) separate the SQL structure from the data values. The query template is sent to the database with placeholders (? or $1), and user input is sent separately as parameters. The database treats the parameter values strictly as data — never as SQL syntax. Even if a parameter contains ' OR '1'='1, the database searches for that literal string rather than interpreting it as a logical condition.",
+    "category": "junior"
+  },
+  {
+    "id": "sqli-mid-01",
+    "question": "Explain the difference between in-band, blind, and out-of-band SQL injection.",
+    "answer": "In-band SQLi: The attacker uses the same communication channel to send the attack and receive results. This includes error-based injection (extracting data from database error messages) and union-based injection (using UNION SELECT to append attacker-controlled results to the legitimate query output).\n\nBlind SQLi: The application does not return query results directly, but the attacker can infer information from behavioral differences. Boolean-based blind SQLi observes application responses to true/false conditions. Time-based blind SQLi uses deliberate delays (e.g., WAITFOR DELAY) to confirm guesses.\n\nOut-of-Band SQLi: The attacker makes the database initiate a connection to an attacker-controlled server (e.g., DNS lookup, HTTP request). This is used when the application is completely silent and the database has features like xp_dirtree (MSSQL) or UTL_HTTP (Oracle). It is the rarest but can be devastating.",
+    "category": "mid"
+  },
+  {
+    "id": "sqli-mid-02",
+    "question": "What is second-order SQL injection?",
+    "answer": "Second-order SQL injection occurs when an attacker's payload is stored safely in the database (e.g., through a parameterized INSERT) but later retrieved and used unsafely in another query (e.g., string concatenation in a SELECT). The injection point and the execution point are different code paths, often separated by time and application logic. Example: a user registers with username \"admin' --\" and the registration form parameterizes the INSERT. Days later, an admin views a report that builds SELECT * FROM orders WHERE username = '\" + username + \"' — the stored payload now executes.",
+    "category": "mid"
+  },
+  {
+    "id": "sqli-mid-03",
+    "question": "How would you test a web application for SQL injection vulnerabilities?",
+    "answer": "1. Identify all input points: URL parameters, form fields, HTTP headers (User-Agent, Cookie, Referer), JSON/XML request bodies.\n\n2. Test for syntax errors: Submit a single quote (') in each parameter and observe if the application returns a database error. SQL errors like \"You have an error in your SQL syntax\" confirm a potential injection point.\n\n3. Test for boolean behavior: Submit ' AND '1'='1 and ' AND '1'='2. If the responses differ (e.g., page content changes, HTTP status differs), boolean-based blind SQLi is possible.\n\n4. Test for time delays: Submit payloads like ' OR SLEEP(5) -- (MySQL) or '; WAITFOR DELAY '00:00:05' -- (MSSQL). A 5-second delay confirms injection.\n\n5. Use automated tools: sqlmap for automated detection and exploitation, Burp Suite Scanner for passive/active scanning.\n\n6. Review source code: Look for string concatenation in query construction, especially in legacy code or raw query interfaces in ORMs.",
+    "category": "mid"
+  },
+  {
+    "id": "sqli-senior-01",
+    "question": "Design a defense-in-depth strategy for SQL injection in a large web application.",
+    "answer": "Layer 1 — Code: Parameterized queries for all database interactions. No string concatenation in query construction. Code review gate that blocks any PR with string concatenation in SQL contexts.\n\nLayer 2 — ORM Safety: Use ORM-provided query builders (which parameterize by default). When raw SQL is unavoidable, enforce a wrapper that only accepts parameterized queries. Validate dynamic identifiers (table names, column names, ORDER BY clauses) against allow-lists.\n\nLayer 3 — Database: Application database accounts with least privilege — no DROP, no ALTER, no xp_cmdshell. Separate read and write accounts where possible. Enable database audit logging.\n\nLayer 4 — Input Validation: Server-side allow-list validation on all inputs. Reject input that doesn't match expected patterns. This is a secondary control — never rely on it as the primary defense.\n\nLayer 5 — WAF: Deploy a WAF with SQLi rulesets in blocking mode. Accept that WAF bypasses exist — the WAF is a safety net, not the primary defense.\n\nLayer 6 — Detection: Monitor database query logs for anomalies (unusual query patterns, excessive errors). Alert on SQL errors in application logs — these indicate attempted or successful injection.\n\nLayer 7 — Testing: SAST (Semgrep/CodeQL) in CI/CD to catch concatenation in query construction. DAST (Burp/ZAP) in staging to find injection points. Annual penetration tests.",
+    "category": "senior"
+  },
+  {
+    "id": "sqli-senior-02",
+    "question": "Explain how ORMs can both prevent and introduce SQL injection vulnerabilities.",
+    "answer": "Prevention: ORMs like Hibernate, Entity Framework, and Sequelize automatically parameterize standard query methods. When you use User.findAll({ where: { username: input } }), the ORM generates a parameterized query. This eliminates injection for the most common query patterns.\n\nIntroduction: ORMs create three new attack surfaces:\n1. Raw query interfaces: Most ORMs provide escape hatches (sequelize.query(), EntityManager.createNativeQuery()) that accept raw SQL strings. Developers sometimes use these for complex queries and reintroduce string concatenation.\n2. Dynamic identifiers: Table names, column names, ORDER BY clauses, and GROUP BY clauses cannot be parameterized by most ORMs. If these come from user input, they must be validated against allow-lists.\n3. Stored procedure calls: ORMs often call stored procedures as strings, and if those procedures use dynamic SQL internally, the ORM's parameterization provides no protection.\n\nBest practice: Use ORM query builders by default. When raw SQL is necessary, always use the ORM's parameter binding (e.g., sequelize.query('SELECT * FROM users WHERE id = ?', { replacements: [userId] })). For dynamic identifiers, validate against static allow-lists.",
+    "category": "senior"
+  },
+  {
+    "id": "sqli-senior-03",
+    "question": "What are the limitations of Web Application Firewalls for preventing SQL injection?",
+    "answer": "1. Bypass techniques are abundant: Encoding (%27 for '), double URL encoding (%2527), Unicode normalization tricks, comment insertion (SEL/**/ECT), whitespace alternatives, and case variation can all evade signature-based detection.\n\n2. WAFs don't understand application context: A WAF sees HTTP traffic, not SQL semantics. It can't distinguish between a legitimate user searching for \"O'Brien\" (containing a single quote) and an injection attempt.\n\n3. False positives break functionality: Aggressive SQLi rules can block legitimate input. Teams often tune rules down (or disable them) to avoid breaking features, reducing protection.\n\n4. WAFs can't prevent second-order SQLi: The payload enters the database through a parameterized INSERT (which the WAF might not flag) and executes later in a different request entirely.\n\n5. WAFs create a false sense of security: Teams that deploy a WAF may deprioritize parameterization, believing the WAF handles SQLi. When the WAF is bypassed, there's no defense.\n\nWAFs are a useful defense-in-depth layer, but they are detection-based and reactive — they try to block known attack patterns. Parameterized queries are prevention-based and eliminate the vulnerability entirely. Always prefer prevention over detection.",
+    "category": "senior"
+  }
+]

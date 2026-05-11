@@ -1,0 +1,106 @@
+# Rate Limiting & Abuse Prevention
+
+Rate limiting is the API equivalent of a bouncer at a club: everyone gets in, but no one gets to flood the bar. It prevents brute-force attacks, credential stuffing, API scraping, and resource exhaustion — while letting legitimate traffic through.
+
+<Callout kind="insight">
+Rate limits are about **cost**, not prevention — they make attacks expensive, not impossible. The key is the *key*: a single per-IP bucket dies to corporate NAT or to a botnet of fresh IPs. Layer **per-account + per-IP + per-endpoint** so attackers can't escape by rotating one identifier. For logins, add breach-password checks and MFA — rate limiting alone won't stop credential stuffing.
+</Callout>
+
+---
+
+## Algorithms
+
+### Token Bucket
+
+A bucket holds tokens (max capacity). Tokens refill at a constant rate. Each request consumes one token. If the bucket is empty, the request is rejected.
+
+```
+Refill rate: 10 tokens/second
+Bucket capacity: 20 tokens
+→ Sustained: 10 req/s
+→ Burst: 20 requests, then throttled
+```
+
+Best for: APIs that need burst tolerance. Users can make a quick burst of requests but are throttled if sustained.
+
+### Leaky Bucket
+
+Requests enter a queue and are processed at a constant rate. If the queue is full, requests are dropped.
+
+```
+Process rate: 10 req/s
+Queue size: 50
+→ Rate is always 10 req/s
+→ Burst up to 50 queued requests
+```
+
+Best for: Smoothing traffic. No bursts at all — requests are delayed to maintain constant rate.
+
+### Fixed Window
+
+Count requests in a time window (e.g., 100 requests per minute). Reset at window boundary.
+
+```
+Window: 60 seconds
+Limit: 100 requests
+→ If you hit 100 at second 59, you're blocked for 1 second
+→ At second 60, counter resets — you can make 100 more
+```
+
+Problem: double bursts at window boundaries (100 requests at 0:59 + 100 at 1:00 = 200 in 2 seconds). Mitigated by **sliding window.**
+
+### Sliding Window
+
+Count requests in the last N seconds, not a fixed window. No boundary effects.
+
+```
+Window: 60 seconds, limit: 100
+→ At any moment, count requests in the last 60 seconds
+→ If count exceeds 100, reject
+```
+
+Best for: Modern rate limiting. No boundary abuse. Requires more state.
+
+---
+
+## Rate Limit Headers
+
+Inform clients of their status:
+
+```http
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 73
+X-RateLimit-Reset: 1715100300
+Retry-After: 5
+```
+
+Clients that respect these headers self-throttle, reducing server load.
+
+---
+
+## Beyond Simple Rate Limiting
+
+- **Per-endpoint limits:** `/login` gets 5/min; `/search` gets 100/min
+- **Per-user vs per-IP:** Authenticated users get higher limits
+- **Graduated response:** Start with delays, escalate to blocks
+- **Monitoring:** Alert on sustained limit hits — indicates attack or bug
+
+---
+
+## Summary
+
+| Strategy | Best For |
+|----------|----------|
+| Token bucket | APIs needing burst tolerance |
+| Sliding window | General-purpose rate limiting |
+| Per-endpoint | Protecting expensive endpoints |
+| Per-user | Authenticated API access |
+| Headers | Client self-throttling |
+
+---
+
+## Misconception
+
+**Myth:** "Rate limiting is only for DDoS protection."
+
+**Reality:** Rate limiting prevents brute-force (password guessing), credential stuffing, API scraping (data harvesting), resource exhaustion (expensive queries), and abuse of free-tier APIs. It's a business logic control as much as a security one. Every authenticated endpoint should have a rate limit.

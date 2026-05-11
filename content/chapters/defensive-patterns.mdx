@@ -1,0 +1,146 @@
+# Defensive Coding Patterns
+
+The previous chapters taught specific attacks and defenses. This chapter synthesizes them into patterns — reusable, composable approaches that prevent entire classes of vulnerabilities.
+
+Defensive coding is not a checklist. It's a mindset: every line of code that handles data from an untrusted source must process that data safely. The patterns below encode that mindset.
+
+<Callout kind="insight">
+**Secure by default beats secure when configured.** The popular safe usage pattern shapes the security posture of an app's entire population far more than the existence of an alternative. Parameterize every query, auto-escape every template, authorize every access — make the easy path the safe path, and the wrong path needs explicit opt-in.
+</Callout>
+
+---
+
+## Pattern 1: Parameterize Every Query
+
+**Problem:** User data concatenated into SQL becomes code.
+
+**Pattern:** Every database query uses parameterized queries (prepared statements). Never concatenate strings into SQL.
+
+```java
+// ✅ Pattern — parameterized
+PreparedStatement stmt = conn.prepareStatement(
+  "SELECT * FROM users WHERE id = ?"
+);
+stmt.setInt(1, userId);
+```
+
+Apply this to every query in every language. No exceptions.
+
+---
+
+## Pattern 2: Encode at Output
+
+**Problem:** User data inserted into HTML/JS/CSS/URL becomes code.
+
+**Pattern:** Encode data at the point of output, using the correct encoder for the context.
+
+```javascript
+// HTML context
+element.textContent = userInput; // ✅ Safe
+
+// HTML attribute context
+element.setAttribute('value', userInput); // ✅ Safe
+
+// URL context
+const url = `/search?q=${encodeURIComponent(query)}`; // ✅ Safe
+```
+
+Framework auto-escaping (React JSX, Vue `{{ }}`) handles HTML context. For other contexts, use the framework or language encoder.
+
+---
+
+## Pattern 3: Validate at the Boundary
+
+**Problem:** Untrusted data enters the system and flows to sensitive operations.
+
+**Pattern:** Validate all input at the system boundary. Use allow-lists and type enforcement.
+
+```javascript
+function handleTransfer(req, res) {
+  const amount = parseInt(req.body.amount, 10);
+  if (isNaN(amount) || amount <= 0 || amount > 10000) {
+    return res.status(400).json({ error: "Invalid amount" });
+  }
+  // amount is now a safe integer between 1-10000
+}
+```
+
+After validation, downstream code can trust the data.
+
+---
+
+## Pattern 4: Authorize Every Access
+
+**Problem:** An authenticated user requests a resource without authorization.
+
+**Pattern:** Every endpoint that returns data from identifiers must verify ownership or authorization.
+
+```javascript
+const doc = await db.documents.findOne({
+  where: { id: req.params.id, ownerId: req.user.id }
+});
+if (!doc) return res.status(404).json({ error: "Not found" });
+```
+
+This eliminates IDOR. Centralize in middleware.
+
+---
+
+## Pattern 5: Never Trust the Client
+
+**Problem:** Client-side validation and state can be bypassed.
+
+**Pattern:** All security decisions happen on the server. Client-side checks are UX only.
+
+- Server validates input regardless of client validation
+- Server enforces authorization regardless of UI hiding
+- Server manages session state; client holds opaque tokens
+
+---
+
+## Pattern 6: Fail Securely
+
+**Problem:** Error paths bypass security controls.
+
+**Pattern:** Errors return minimal information and maintain security posture.
+
+```javascript
+// ❌ Leaks information
+catch (err) { res.status(500).json({ error: err.message }); }
+
+// ✅ Safe
+catch (err) {
+  console.error(err);
+  res.status(500).json({ error: "Internal server error" });
+}
+```
+
+---
+
+## Pattern 7: Least Privilege
+
+**Problem:** Services run with more permissions than needed.
+
+**Pattern:** Every component gets the minimum access required. Database accounts, IAM roles, API keys — least privilege everywhere.
+
+---
+
+## Summary
+
+| Pattern | What It Prevents |
+|---------|-----------------|
+| Parameterize every query | SQL injection |
+| Encode at output | XSS |
+| Validate at boundary | Injection, business logic flaws |
+| Authorize every access | IDOR, privilege escalation |
+| Never trust client | All client-side bypasses |
+| Fail securely | Information leakage |
+| Least privilege | Blast radius reduction |
+
+---
+
+## Misconception
+
+**Myth:** "Defensive coding makes development slower."
+
+**Reality:** Defensive patterns are boilerplate — they become automatic with practice. A parameterized query takes the same time to write as a concatenated one. A framework that auto-escapes takes less time than manual escaping. The slowdown is in the first week of learning; the speedup is in the years of not fixing vulnerabilities in production.

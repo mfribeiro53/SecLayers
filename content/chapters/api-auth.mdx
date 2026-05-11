@@ -1,0 +1,89 @@
+# REST API Authentication
+
+REST APIs don't have sessions or cookies like browser apps. They need different authentication patterns: API keys for simple cases, OAuth 2.0 for delegation, and OIDC for identity. The fundamental challenge: how does a stateless HTTP API know who's calling?
+
+<Callout kind="insight">
+**OAuth is authorization, not authentication.** The `access_token` says *"this app can do X on behalf of someone"* — not *"this user is who they claim to be."* For identity, use OpenID Connect's `id_token`. For public clients (mobile, SPA), always Authorization Code + PKCE — never the deprecated implicit grant.
+</Callout>
+
+---
+
+## API Keys
+
+The simplest pattern. A long random string sent in a header.
+
+```
+GET /api/v1/orders
+Authorization: Bearer sk_live_abc123def456
+```
+
+Pros: simple, stateless, works everywhere. Cons: no user identity, no expiration, no scoping. If leaked, the attacker has full access until the key is rotated.
+
+Best for: service-to-service calls, webhooks, read-only public APIs. Never for user authentication.
+
+---
+
+## OAuth 2.0
+
+The standard for delegated authorization. A user grants a third-party app limited access to their resources without sharing their password.
+
+**Grant types:**
+
+| Grant | Use Case |
+|-------|----------|
+| Authorization Code + PKCE | Public clients (SPAs, mobile apps). The standard for 2026. |
+| Client Credentials | Server-to-server (no user involved) |
+| Device Code | TVs, IoT devices with no browser |
+
+**Authorization Code + PKCE flow:**
+
+1. Client generates `code_verifier` (random 43-128 chars) and `code_challenge = SHA256(code_verifier)`
+2. Client redirects user to authorization server with `code_challenge`
+3. User authenticates and approves scopes
+4. Authorization server redirects back with `code`
+5. Client exchanges `code` + `code_verifier` for `access_token` + `refresh_token`
+6. Client uses `access_token` to call the resource API
+
+**PKCE prevents authorization code interception.** Without PKCE, an attacker who steals the `code` can exchange it for a token. With PKCE, they need the `code_verifier` which never leaves the client.
+
+**Token types:**
+- **Access token (Bearer):** Short-lived (5-60 min). Presented to API on every request.
+- **Refresh token:** Long-lived (days/weeks). Stored securely, used only to get new access tokens. Rotate on each use.
+
+---
+
+## OpenID Connect (OIDC)
+
+OAuth 2.0 + identity. Adds an `id_token` (JWT) containing user claims.
+
+```
+{
+  "iss": "https://auth.example.com",
+  "sub": "user-123",
+  "aud": "app-client-id",
+  "email": "alice@example.com",
+  "iat": 1715100000,
+  "exp": 1715100300
+}
+```
+
+OIDC is for authentication ("who are you?"), OAuth is for authorization ("what can you do?"). OIDC builds on OAuth.
+
+---
+
+## Best Practices
+
+- Never use the implicit grant (deprecated by OAuth 2.1)
+- Always use PKCE, even for confidential clients
+- Validate `state` parameter to prevent CSRF in OAuth flows
+- Short-lived access tokens (5-15 min) + refresh token rotation
+- Store tokens securely: `HttpOnly` cookie for web, device keychain for mobile
+- Validate `aud` claim in JWT — ensure token is intended for your API
+
+---
+
+## Misconception
+
+**Myth:** "We use API keys, so our API is secure."
+
+**Reality:** API keys are static credentials without user identity, expiration, or scope. They provide authentication (which project is calling) but not authorization (which user, what permissions). If an API key leaks (git commit, client-side code, logs), it's valid until manually revoked. OAuth tokens with short lifetimes and refresh rotation provide stronger security.

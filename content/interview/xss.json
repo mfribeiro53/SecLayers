@@ -1,0 +1,50 @@
+[
+  {
+    "id": "xss-junior-01",
+    "question": "What is Cross-Site Scripting (XSS)?",
+    "answer": "Cross-Site Scripting (XSS) is a vulnerability that allows an attacker to inject malicious JavaScript into a web page viewed by other users. The victim's browser executes the injected script as if it came from the trusted site, giving the attacker the ability to steal cookies, capture keystrokes, rewrite page content, or make requests as the victim.",
+    "category": "junior"
+  },
+  {
+    "id": "xss-junior-02",
+    "question": "What is the difference between reflected, stored, and DOM-based XSS?",
+    "answer": "Reflected XSS: The payload is in the request (URL parameter, form input) and echoed immediately in the response. The victim must click a crafted link. The payload never touches the database.\n\nStored XSS: The payload is saved on the server (database, file) and served to every user who views the affected page. One payload can compromise unlimited victims. Common in comment sections and user profiles.\n\nDOM-Based XSS: The vulnerability is entirely in client-side JavaScript. The payload is read from a browser source (location.hash, document.referrer) and written unsafely to a DOM sink (innerHTML, document.write). The server never sees the payload.",
+    "category": "junior"
+  },
+  {
+    "id": "xss-mid-01",
+    "question": "Explain context-aware output encoding and why a single encoding function is not enough.",
+    "answer": "Output encoding must match the context where data is inserted:\n\n- HTML body context (<div>DATA</div>): HTML-encode — &lt; for <, &quot; for \".\n- HTML attribute context (<input value=\"DATA\">): HTML-attribute-encode — also encode quotes and spaces.\n- JavaScript context (<script>var x='DATA'</script>): JS-encode — escape quotes, backslashes, and newlines (\\x27 for ').\n- CSS context (<style>body{color:DATA}</style>): CSS-encode.\n- URL context (<a href=\"DATA\">): URL-encode and validate the protocol (reject javascript:).\n\nHTML-encoding inside a <script> block is insufficient — the attacker can use \\x27 to break out of the JS string even when '<' is encoded. Each context has its own dangerous characters and escaping rules.",
+    "category": "mid"
+  },
+  {
+    "id": "xss-mid-02",
+    "question": "How does Content Security Policy (CSP) help prevent XSS? What are common CSP mistakes?",
+    "answer": "CSP tells the browser which sources of JavaScript are allowed via the script-src directive. Even if an attacker injects a <script> tag, the browser refuses to execute it unless the source matches the policy.\n\nCommon mistakes:\n1. Using 'unsafe-inline' — allows all inline <script> tags, defeating CSP's main purpose. Use nonces or hashes instead.\n2. Using 'unsafe-eval' — allows eval(), a common XSS sink.\n3. Wildcards (*) in script-src — allows scripts from any origin.\n4. Missing object-src 'none' — <object> and <embed> can execute scripts.\n5. Missing base-uri 'self' — <base> tag injection can hijack relative URLs.\n6. Relying on CSP as the only defense — CSP can be bypassed, and old browsers don't support it. Always pair CSP with output encoding.",
+    "category": "mid"
+  },
+  {
+    "id": "xss-mid-03",
+    "question": "What are Trusted Types and how do they prevent DOM XSS?",
+    "answer": "Trusted Types is a browser API that prevents DOM-based XSS by requiring that dangerous DOM sinks (innerHTML, document.write, eval) only accept TrustedHTML objects — never raw strings.\n\nWithout Trusted Types, this code is vulnerable: element.innerHTML = userInput; // attacker controls userInput.\n\nWith Trusted Types enforced (via CSP: require-trusted-types-for 'script'), this line throws a TypeError — raw strings are rejected. You must use a Trusted Types policy with explicit sanitization:\n\nconst policy = trustedTypes.createPolicy('default', {\n  createHTML: (input) => DOMPurify.sanitize(input)\n});\nelement.innerHTML = policy.createHTML(userInput);\n\nTrusted Types make DOM XSS impossible by default — the developer must explicitly opt into dangerous operations through a policy.",
+    "category": "mid"
+  },
+  {
+    "id": "xss-senior-01",
+    "question": "Design a comprehensive XSS defense strategy for a React single-page application.",
+    "answer": "Layer 1 — Framework defaults: React's JSX auto-escapes all expressions by default. Never use dangerouslySetInnerHTML without explicit sanitization. Audit every dangerouslySetInnerHTML usage in code review.\n\nLayer 2 — HTML sanitization: When rich HTML is unavoidable, use DOMPurify. Create a wrapper component (SafeHTML) that wraps dangerouslySetInnerHTML with DOMPurify.sanitize(). Never call DOMPurify inline — centralize it so you can audit every usage.\n\nLayer 3 — CSP: Serve a strict CSP header: script-src 'self'; object-src 'none'; base-uri 'self'. Use nonces for any legitimate inline scripts. Start in report-only mode, collect violation reports, then switch to enforcement.\n\nLayer 4 — Trusted Types: Enforce via CSP: require-trusted-types-for 'script'. Create a default policy that sanitizes with DOMPurify.\n\nLayer 5 — httpOnly cookies: Mark session tokens HttpOnly; Secure; SameSite=Lax. This prevents cookie theft even if XSS succeeds.\n\nLayer 6 — API hardening: The injected script can make authenticated API calls. Use short-lived access tokens, CORS restrictions, and request signing for sensitive operations (e.g., changing email/password requires re-authentication).\n\nLayer 7 — Monitoring: Report CSP violations to an endpoint. Monitor for unusual DOM mutations in production (MutationObserver + telemetry). Alert on spikes in CSP violation reports — these indicate attempted or successful injection.",
+    "category": "senior"
+  },
+  {
+    "id": "xss-senior-02",
+    "question": "Compare CSP nonces, hashes, and 'unsafe-inline'. When would you use each?",
+    "answer": "CSP nonces: A random value generated per request, included in the CSP header and on legitimate <script> tags. <script nonce=\"abc123\"> with CSP script-src 'nonce-abc123'. Only scripts with the matching nonce execute. Use for dynamic inline scripts. Must be unpredictable — never reuse nonces or derive them from user input.\n\nCSP hashes: A SHA-256 hash of the script's contents. CSP: script-src 'sha256-xNf...'. Only scripts whose hash matches execute. Use for static inline scripts where the content never changes. Fragile — any change to the script (including whitespace) breaks the hash.\n\n'unsafe-inline': Allows ALL inline scripts. Defeats the primary purpose of CSP. Never use in production. The only legitimate use is during migration to nonce/hash-based policies.\n\nRule of thumb: Prefer nonces for dynamic content, hashes for static inline scripts, never unsafe-inline.",
+    "category": "senior"
+  },
+  {
+    "id": "xss-senior-03",
+    "question": "How do modern JavaScript frameworks (React, Vue, Angular) prevent XSS, and where do they still leave developers vulnerable?",
+    "answer": "React: JSX auto-escapes expressions in curly braces. {userInput} is HTML-encoded. Protection applies only to JSX expressions, not to dangerouslySetInnerHTML (which requires explicit use), not to href/src attributes (which can accept javascript: URLs), and not to event handlers (onClick={...} — though React doesn't execute strings as handlers).\n\nVue: {{ expression }} auto-escapes. v-html bypasses protection entirely. v-bind on href can accept javascript: URLs.\n\nAngular: Template interpolation ({{ expression }}) auto-escapes. [innerHTML] bypasses protection. [href] can accept javascript: URLs.\n\nCommon vulnerability patterns across all frameworks:\n1. Rendering user input as HTML (dangerouslySetInnerHTML, v-html, [innerHTML]) without sanitization.\n2. User-controlled URLs in href/src attributes — javascript:alert(1) executes even with auto-escaping.\n3. Server-side rendering (SSR) with user input in the HTML template — the framework's client-side protection hasn't loaded yet.\n4. Third-party libraries that manipulate the DOM directly (jQuery, D3, chart libraries) — they bypass the framework's virtual DOM.",
+    "category": "senior"
+  }
+]

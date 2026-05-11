@@ -1,0 +1,207 @@
+# CSRF & SameSite
+
+Cross-Site Request Forgery (CSRF) is the attack where a victim's browser is tricked into making an unwanted request to a site where they're authenticated. The result: the site executes an action — transferring money, changing an email, deleting data — believing the victim intended it.
+
+CSRF exploits the browser's automatic cookie behavior. Browsers attach cookies to every request to the cookie's origin, regardless of which site initiated the request. If you're logged into `bank.com`, a visit to `evil.com` can trigger a request to `bank.com/transfer` — and your browser will happily attach your session cookie.
+
+<Callout kind="insight">
+CSRF works because cookies travel automatically on every request to their issuing domain. The defense is to require something the attacker **can't** auto-attach: an anti-CSRF token in a header, a `SameSite=Lax` (or `Strict`) cookie, or both. State-changing operations must never accept GET — an `<img src="...">` is a one-line exploit.
+</Callout>
+
+---
+
+## How It Works
+
+**Scenario:** Alice is logged into `bank.com`. Her session cookie is in her browser. She visits `evil.com`, which contains:
+
+```html
+<form action="https://bank.com/transfer" method="POST" id="f">
+  <input type="hidden" name="to" value="attacker">
+  <input type="hidden" name="amount" value="10000">
+</form>
+<script>document.getElementById('f').submit();</script>
+```
+
+Alice's browser:
+1. Parses the form on `evil.com`
+2. Sends a POST to `https://bank.com/transfer` with `to=attacker&amount=10000`
+3. Attaches Alice's `bank.com` session cookie to the request
+
+`bank.com` sees a valid, authenticated request — from Alice's IP, with Alice's cookie. It executes the transfer. **Alice never knew it happened.**
+
+The key insight: **the browser cannot distinguish between a request initiated by `bank.com`'s own JavaScript and a request initiated by `evil.com`'s HTML form.** Both produce identical HTTP requests with identical cookies.
+
+---
+
+## What Makes a Site Vulnerable
+
+CSRF requires three conditions:
+
+1. **A relevant action.** The application has a state-changing operation the attacker wants to trigger (transfer money, change email, delete account).
+2. **Cookie-based session handling.** The application identifies users solely via session cookies that the browser sends automatically.
+3. **No unpredictable request parameters.** The attacker can guess or know all parameters needed for the request. If the application requires the current password to change email, CSRF is much harder.
+
+**GET vs POST:** CSRF works with both. POST is slightly harder (requires a form instead of an `<img>` tag) but not a defense:
+
+```html
+<!-- CSRF via GET — trivial, just an image tag -->
+<img src="https://bank.com/transfer?to=attacker&amount=10000">
+```
+
+**Never put state-changing operations behind GET requests.** GET should be idempotent and safe. Use POST, PUT, or DELETE for state changes — and then add CSRF protection.
+
+---
+
+## Defenses
+
+### 1. Anti-CSRF Tokens
+
+The gold standard. The server generates a random token, embeds it in forms, and requires it in state-changing requests.
+
+**How it works:**
+1. Server generates `csrf_token = random_bytes(32)` and stores it in the user's session
+2. Every form includes: `<input type="hidden" name="csrf_token" value="...">`
+3. The server rejects any POST/PUT/DELETE request without a valid token
+
+**Why it works:** The attacker cannot read the token because of the Same-Origin Policy. `evil.com` can craft a form that submits to `bank.com`, but it cannot read the anti-CSRF token from `bank.com`'s pages to include it in the form.
+
+**Implementation (Express example):**
+```javascript
+const csrf = require('csurf');
+app.use(csrf({ cookie: true }));
+
+// In your template:
+res.render('form', { csrfToken: req.csrfToken() });
+
+// Middleware validates token on state-changing routes
+app.post('/transfer', csrfProtection, handler);
+```
+
+**Token per session vs per request:** Per-session tokens (one token for the user's session) are simpler. Per-request tokens (new token after each use) protect against BREACH attacks and accidental token leakage but add complexity. Per-session is sufficient for most applications.
+
+### 2. SameSite Cookies
+
+A browser-level defense. The `SameSite` cookie attribute tells the browser when to attach cookies to cross-site requests.
+
+**Three values:**
+
+| Value | Behavior |
+|-------|----------|
+| `Strict` | Cookies are never sent on cross-site requests. Even clicking a link from `evil.com` to `bank.com` won't attach cookies — the user arrives logged out. Maximum security, worst UX. |
+| `Lax` | Cookies are sent on top-level navigations with safe methods (GET). Not sent on POST requests from cross-site origins or in subresource loads (images, iframes). This is the modern default and the right choice for most sites. |
+| `None` | Cookies are sent on all requests. Must also include `Secure`. This is the pre-2019 behavior. Required for cross-site integrations (OAuth, embedded widgets). |
+
+**Example:**
+```http
+Set-Cookie: session=abc123; HttpOnly; Secure; SameSite=Lax
+```
+
+**SameSite=Lax blocks CSRF** because the attacker's forged form is a cross-site POST — the browser won't attach cookies. The user can still click a link to `bank.com` and arrive logged in (GET is allowed).
+
+**Browser support:** SameSite is supported in all modern browsers since ~2019. Chrome defaults to `Lax` if no SameSite is specified. Do not rely on SameSite alone — always use it with anti-CSRF tokens for defense-in-depth.
+
+### 3. Origin and Referer Validation
+
+Check the `Origin` or `Referer` header on state-changing requests.
+
+```javascript
+function isValidOrigin(req) {
+  const origin = req.headers.origin || req.headers.referer;
+  return origin && origin.startsWith('https://bank.com');
+}
+```
+
+**Why it works:** The browser sets `Origin` to the initiating site's origin. A form from `evil.com` sends `Origin: https://evil.com` — which fails validation.
+
+**Limitations:** Some browsers/reverse-proxies strip these headers. Privacy extensions may suppress `Referer`. Use this as a supplementary check, not the primary defense.
+
+### 4. Custom Request Headers
+
+JavaScript can set custom headers, but HTML forms cannot. If your API requires a custom header for state-changing requests, CSRF via form submission is blocked.
+
+```javascript
+// JavaScript fetch — can set custom headers
+fetch('/api/transfer', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
+  },
+  body: JSON.stringify({ to: 'attacker', amount: 10000 })
+});
+```
+
+An attacker's form cannot set `X-Requested-With`. This works well for SPAs that use JSON APIs. Validate the header server-side.
+
+**Limitations:** CORS misconfigurations can allow cross-site JavaScript to set headers. This defense only works if your CORS policy is correctly restrictive.
+
+### 5. Double Submit Cookie
+
+An alternative to server-side token storage. The server sets a random value in a cookie and also embeds it in forms. The server checks that the cookie value matches the form value.
+
+```javascript
+// Server sets cookie
+res.cookie('csrf_token', token, { httpOnly: false });
+
+// Form includes same token
+<input type="hidden" name="csrf_token" value="...">
+
+// Server compares
+if (req.cookies.csrf_token !== req.body.csrf_token) {
+  return res.status(403).send('Invalid CSRF token');
+}
+```
+
+**Why it works:** The attacker's site can forge a request that includes the `csrf_token` cookie (browsers send all cookies), but cannot read the cookie value to include it in the request body, and cannot set a custom cookie for `bank.com`.
+
+**Limitations:** Vulnerable to subdomain takeover (an attacker controlling `sub.bank.com` can set cookies for `bank.com`). Session-based tokens are more robust.
+
+---
+
+## CSRF + XSS = Complete Compromise
+
+If a site has both CSRF and XSS, CSRF protections fail. Injected JavaScript can:
+- Read the anti-CSRF token from the page DOM
+- Read the double-submit cookie value
+- Forge requests with custom headers
+- Bypass all CSRF defenses
+
+**CSRF defenses assume the attacker cannot read the response page.** XSS gives them that ability. This is why XSS is often the gateway to full account takeover — it breaks CSRF, CSP, and Same-Origin Policy simultaneously.
+
+---
+
+## Testing for CSRF
+
+**Manual testing:**
+1. Log into the application as user A
+2. Identify a state-changing request (POST/PUT/DELETE)
+3. Craft an HTML form on a different origin that submits to the same endpoint
+4. Submit the form while logged in — if the action executes, CSRF is present
+5. Check for anti-CSRF tokens in forms. Are they present? Are they validated? Can you reuse a token from another session?
+
+**Automated tools:**
+- **Burp Suite:** Generate CSRF PoC from any request. Right-click → Engagement Tools → Generate CSRF PoC
+- **OWASP ZAP:** Active scanning includes CSRF detection
+
+---
+
+## Summary
+
+| Defense | Mechanism | Strength |
+|---------|-----------|----------|
+| **Anti-CSRF tokens** | Random token in form, validated server-side | Strongest — primary defense |
+| **SameSite=Lax** | Browser refuses cookies on cross-site POST | Strong — defense-in-depth |
+| **Origin validation** | Check Origin/Referer header | Moderate — supplementary |
+| **Custom headers** | Require X-Requested-With or Content-Type: application/json | Moderate — SPA-specific |
+| **Double submit cookie** | Cookie + form value match | Moderate — no server state |
+| **Re-authentication** | Require password for sensitive actions | Strong — but UX cost |
+
+**Never:** Put state-changing operations behind GET. Use anti-CSRF tokens. Set SameSite=Lax. And fix XSS — because XSS breaks all CSRF defenses.
+
+---
+
+## Misconception
+
+**Myth:** "We only use JSON APIs, so we're immune to CSRF."
+
+**Reality:** CSRF via JSON is harder but possible. An attacker can submit a form with `enctype="text/plain"` and a cleverly structured body, or use `fetch` with `mode: "no-cors"` for simple JSON payloads. More importantly, many JSON APIs also accept `application/x-www-form-urlencoded` (framework default behavior) — check your content-type handling. JSON APIs should still use anti-CSRF tokens or custom header validation.

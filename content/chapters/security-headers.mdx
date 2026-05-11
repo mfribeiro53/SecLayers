@@ -1,0 +1,101 @@
+# HTTP Security Headers
+
+HTTP security headers are the easiest security win in web applications. They require no code changes — just server configuration — and provide defense-in-depth against XSS, clickjacking, MIME sniffing, and information leakage.
+
+A single response header can mean the difference between a vulnerability being exploitable or benign. If you do nothing else this week, add these headers.
+
+<Callout kind="insight">
+**Security headers are free.** They cost nothing to ship and turn most of the web's classic exploits into refusal-to-execute. HSTS prevents downgrade, `X-Content-Type-Options: nosniff` kills MIME confusion, `frame-ancestors` blocks clickjacking, and a strict CSP downgrades XSS to a console warning. Set them once at the edge or framework level and benefit forever.
+</Callout>
+
+---
+
+## The Essential Headers
+
+### 1. Content-Security-Policy (CSP)
+
+The most powerful security header. Controls which resources the browser can load.
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'
+```
+
+See Chapter 12 for the full CSP deep dive.
+
+### 2. Strict-Transport-Security (HSTS)
+
+Forces HTTPS. The browser refuses HTTP connections to your domain.
+
+```http
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+```
+
+**max-age:** Duration in seconds (1 year = 31536000). **includeSubDomains:** Applies to all subdomains. **preload:** Submit to browser preload lists — browsers hardcode HTTPS for your domain.
+
+### 3. X-Content-Type-Options
+
+Prevents MIME type sniffing. The browser must use the declared Content-Type.
+
+```http
+X-Content-Type-Options: nosniff
+```
+
+Without this, a file served as `text/plain` but containing HTML can be executed as HTML if the browser "sniffs" it. With `nosniff`, the browser respects the declared type.
+
+### 4. X-Frame-Options
+
+Prevents clickjacking. Controls whether your page can be embedded in an iframe.
+
+```http
+X-Frame-Options: DENY
+```
+
+**DENY:** Never allow framing. **SAMEORIGIN:** Allow framing by same origin. CSP `frame-ancestors` is the modern replacement.
+
+### 5. Referrer-Policy
+
+Controls how much Referer header information is sent to other sites.
+
+```http
+Referrer-Policy: strict-origin-when-cross-origin
+```
+
+Prevents leaking full URLs (with query parameters) to third-party sites. Modern default.
+
+### 6. Permissions-Policy
+
+Controls which browser features are available.
+
+```http
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+```
+
+Disables camera, microphone, and geolocation entirely. Even if XSS succeeds, the script can't access these.
+
+---
+
+## Grading Headers
+
+Security headers can be graded objectively:
+
+| Header | A+ | F |
+|--------|----|---|
+| CSP | Present, no 'unsafe-inline'/'unsafe-eval' | Missing or with unsafe directives |
+| HSTS | max-age ≥ 1 year, includeSubDomains | Missing |
+| X-Content-Type-Options | nosniff | Missing |
+| X-Frame-Options | DENY or SAMEORIGIN | Missing |
+| Referrer-Policy | strict-origin-when-cross-origin | Missing or unsafe-url |
+
+---
+
+## Summary
+
+Headers are not optional. They're the minimum security baseline for every web application. Default configurations in Nginx, Apache, and cloud CDNs should include all six. Security scanners like Mozilla Observatory, securityheaders.com, and OWASP ZAP grade your headers — and penetration testers flag missing headers as findings.
+
+---
+
+## Misconception
+
+**Myth:** "Security headers are a nice-to-have — they don't actually stop real attacks."
+
+**Reality:** CSP has stopped real XSS exploitation in production. HSTS has prevented credential theft on public WiFi. X-Frame-Options has blocked clickjacking attacks against banks. These headers are not theoretical — they are active, browser-enforced security controls that run on every page load for every user. The cost is one HTTP response line. The benefit is defense-in-depth against entire vulnerability classes.

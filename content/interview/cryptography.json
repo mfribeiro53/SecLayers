@@ -1,0 +1,38 @@
+[
+  {
+    "id": "crypto-junior-01",
+    "question": "What is the difference between hashing and encryption?",
+    "answer": "Hashing is a one-way function — you cannot recover the original input from the hash. It produces a fixed-size output and requires no key. Used for password storage and data integrity (bcrypt, SHA-256).\n\nEncryption is reversible — with the correct key, you can decrypt ciphertext back to plaintext. Output size varies with input. Used for confidentiality (AES-GCM, ChaCha20).",
+    "category": "junior"
+  },
+  {
+    "id": "crypto-junior-02",
+    "question": "Why shouldn't you use SHA-256 for password storage?",
+    "answer": "SHA-256 is designed to be fast — attackers can try billions of guesses per second on a GPU. Password hashing should be deliberately slow and memory-hard to resist brute-force attacks. Use bcrypt, scrypt, or Argon2 instead. Also, SHA-256 lacks built-in salting — without a salt, identical passwords produce identical hashes, making rainbow table attacks trivial.",
+    "category": "junior"
+  },
+  {
+    "id": "crypto-mid-01",
+    "question": "Explain why AES in ECB mode is dangerous and what mode should be used instead.",
+    "answer": "ECB (Electronic Codebook) encrypts each block independently with the same key. Identical plaintext blocks produce identical ciphertext blocks, revealing patterns in the encrypted data. The famous 'ECB penguin' demonstrates this — encrypting an image of a penguin with AES-ECB still shows the penguin's outline in the ciphertext.\n\nUse an authenticated mode instead: AES-GCM (Galois/Counter Mode) or ChaCha20-Poly1305. These modes include authentication tags that detect tampering, and they use unique nonces/IVs so identical plaintext produces different ciphertext.",
+    "category": "mid"
+  },
+  {
+    "id": "crypto-mid-02",
+    "question": "What is a nonce/IV and what happens if you reuse one in AES-GCM?",
+    "answer": "A nonce (number used once) or IV (initialization vector) is a random or sequential value that ensures the same plaintext encrypted with the same key produces different ciphertext. It's typically 96 bits (12 bytes) for AES-GCM.\n\nReusing a nonce with the same key in AES-GCM is catastrophic: it leaks the XOR of the two plaintexts, often allowing full plaintext recovery. The authentication key may also be recovered, allowing the attacker to forge messages. Always generate a fresh cryptographically random nonce for every encryption operation.",
+    "category": "mid"
+  },
+  {
+    "id": "crypto-senior-01",
+    "question": "Compare RSA and Elliptic Curve Cryptography (ECC). When would you use each?",
+    "answer": "RSA: Older, larger keys (2048-4096 bits). Slower key generation. Used for encryption (RSA-OAEP) and signatures (RSA-PSS). Widely supported across legacy systems.\n\nECC: Modern, smaller keys (256-bit ECC ≈ 3072-bit RSA security). Faster key generation and signing. Used for key exchange (ECDH, Curve25519) and signatures (ECDSA, Ed25519). Better for mobile and IoT (lower CPU/memory).\n\nUse ECC for new systems — it's faster, uses less bandwidth, and modern libraries make it harder to misuse (Curve25519 is designed to be misuse-resistant). Use RSA only when you need compatibility with legacy systems that don't support ECC. Never use raw/textbook RSA — always use OAEP padding for encryption and PSS for signatures.",
+    "category": "senior"
+  },
+  {
+    "id": "crypto-senior-02",
+    "question": "What are the most common cryptographic implementation mistakes you've seen in production code?",
+    "answer": "1. ECB mode — encrypting with AES/ECB reveals data patterns. Flag immediately.\n2. Nonce reuse — reusing the same nonce with the same key in AES-GCM leaks plaintext. Generate fresh random nonces.\n3. Weak randomness — Math.random() instead of crypto.getRandomValues(). Predictable randomness breaks key generation, nonces, and tokens.\n4. Hardcoded keys — keys in source code, config files, or environment variables committed to git. Use a KMS (AWS KMS, HashiCorp Vault).\n5. Custom protocol design — 'Let's just XOR with a password.' TLS 1.3 exists. Use it.\n6. Using SHA-256 or MD5 for passwords — they're fast hashes, not password hashes. Use bcrypt/Argon2.\n7. Missing authentication — encryption without a MAC allows ciphertext tampering. Always use AEAD (AES-GCM, ChaCha20-Poly1305).",
+    "category": "senior"
+  }
+]

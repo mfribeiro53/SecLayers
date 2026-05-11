@@ -1,0 +1,38 @@
+[
+  {
+    "id": "val-junior-01",
+    "question": "What is the difference between input validation and output encoding?",
+    "answer": "Input validation checks that data conforms to expected patterns before processing — it's a correctness check (e.g., 'this must be an integer between 1 and 1000'). Output encoding transforms data so it can be safely inserted into a specific context — it's a security check (e.g., HTML-encoding '<' as '&lt;' before inserting into a <div>). Validation reduces attack surface; encoding prevents injection. You need both.",
+    "category": "junior"
+  },
+  {
+    "id": "val-junior-02",
+    "question": "Why are allow-lists preferred over block-lists for input validation?",
+    "answer": "Allow-lists define what valid input looks like (e.g., 'only alphanumeric, 3-20 characters'). Block-lists try to enumerate bad input (e.g., 'reject input containing ? or --'). Block-lists fail because attackers innovate — when you block ', they use %27; when you block %27, they use %2527. An allow-list rejects everything that doesn't match the expected pattern, regardless of encoding tricks. It's future-proof against novel attacks.",
+    "category": "junior"
+  },
+  {
+    "id": "val-mid-01",
+    "question": "Explain context-aware output encoding with examples for different contexts.",
+    "answer": "The encoding depends on where data is inserted:\n\n- HTML body (<div>DATA</div>): HTML-encode — < to &lt;, > to &gt;, & to &amp;.\n- HTML attribute (<input value=\"DATA\">): Same as HTML plus escape quotes. Always quote attributes.\n- JavaScript string (var x='DATA'): JS-encode — escape quotes (\\x27), backslashes, newlines.\n- CSS (body{color:DATA}): CSS-encode — avoid inserting user data in CSS entirely.\n- URL (/search?q=DATA): URL-encode with encodeURIComponent().\n\nUsing the wrong encoding is dangerous. HTML-encoding inside a <script> block is insufficient — the attacker can use \\x27 to break out of the JS string.",
+    "category": "mid"
+  },
+  {
+    "id": "val-mid-02",
+    "question": "Where should input validation happen — client-side, server-side, or both?",
+    "answer": "Client-side validation is a UX convenience — it gives users immediate feedback. It has zero security value because an attacker can bypass it trivially (disable JavaScript, send raw HTTP requests, use curl).\n\nServer-side validation is the security control. Always validate on the server at the trust boundary — the API endpoint, form handler, or file parser. Once data passes server-side validation, downstream code can trust it.\n\nBoth is the correct answer: client-side for UX, server-side for security. Never rely on client-side validation alone.",
+    "category": "mid"
+  },
+  {
+    "id": "val-senior-01",
+    "question": "Design an input validation and output encoding strategy for a web application with multiple output contexts.",
+    "answer": "Strategy:\n\n1. Validation at the boundary — every API endpoint validates input against allow-lists before any processing. Type enforcement (parseInt, parseDate) for structured data. Reject invalid input with 400 status.\n\n2. Canonicalization — decode input once to a canonical form before validation to prevent encoding bypass attacks.\n\n3. Type-safe data layer — after validation, data is stored in typed data structures (user.id is an int, never a string). Downstream code accesses typed data, not raw input.\n\n4. Context-specific encoding at output — the template/renderer encodes data for its specific context. HTML templates use auto-escaping (React JSX, Vue {{ }}). URL parameters use encodeURIComponent(). Never encode data early — encode at the last possible moment, in the correct context.\n\n5. Centralize dangerous operations — audits for innerHTML, dangerouslySetInnerHTML, v-html, and [innerHTML] in code review. Require DOMPurify for any HTML rendering.\n\n6. Test with attack payloads — automated tests that send XSS and SQLi payloads and verify they're safely encoded or rejected.",
+    "category": "senior"
+  },
+  {
+    "id": "val-senior-02",
+    "question": "What are common mistakes developers make with input validation and output encoding?",
+    "answer": "1. Block-listing instead of allow-listing — always incomplete.\n2. Encoding too early — data is HTML-encoded, then used in a SQL query. Wrong encoding, corrupted data.\n3. Using the same encoding for all contexts — HTML encoding for a JavaScript context is insufficient.\n4. Validating after processing — parsing the input first and validating later; the parser may have already been exploited.\n5. Skipping server-side validation — trusting client-side validation alone.\n6. Writing custom encoders — every framework provides tested encoders. Custom implementations almost always have edge-case bugs.\n7. Treating validation as a substitute for encoding — a valid string like 'O\\'Brien' passes all checks but is dangerous in a JavaScript string context.",
+    "category": "senior"
+  }
+]

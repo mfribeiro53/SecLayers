@@ -1,0 +1,38 @@
+[
+  {
+    "id": "tm-junior-01",
+    "question": "What is threat modeling and why is it important?",
+    "answer": "Threat modeling is a structured process for identifying and prioritizing potential security threats to a system before writing code. It's important because it finds design flaws (not just code bugs), prioritizes defenses by risk, creates shared understanding between security and engineering teams, and satisfies compliance requirements like SOC 2 and ISO 27001.",
+    "category": "junior"
+  },
+  {
+    "id": "tm-junior-02",
+    "question": "What does STRIDE stand for?",
+    "answer": "STRIDE is a threat classification framework: Spoofing (authentication), Tampering (integrity), Repudiation (non-repudiation), Information Disclosure (confidentiality), Denial of Service (availability), Elevation of Privilege (authorization). Each letter represents a category of threat that violates a specific security property.",
+    "category": "junior"
+  },
+  {
+    "id": "tm-mid-01",
+    "question": "Explain the five elements of a Data Flow Diagram and the role of trust boundaries.",
+    "answer": "DFD elements: External Entity (person/system outside your control), Process (code that processes data), Data Store (where data rests), Data Flow (data in motion), Trust Boundary (where trust level changes).\n\nTrust boundaries are the most important element — they're where threats live. Every time data crosses a trust boundary (e.g., user to server, public internet to VPC, microservice A to microservice B), you must apply STRIDE: is the data being spoofed? Tampered? Could it be disclosed? The boundary marks the transition from a trusted to an untrusted context.",
+    "category": "mid"
+  },
+  {
+    "id": "tm-mid-02",
+    "question": "When should a team perform threat modeling?",
+    "answer": "1. During design — before code is written. This is the highest-leverage moment (a design change costs hours; a production fix costs weeks).\n2. Before major feature launches — any feature with a new trust relationship (new payment flow, new API integration, new data pipeline).\n3. Annually for existing systems — systems change, and last year's threat model is stale.\nThreat modeling should be a continuous habit integrated into design review, not an annual project.",
+    "category": "mid"
+  },
+  {
+    "id": "tm-senior-01",
+    "question": "How do you prioritize threats in a threat model? What are the four risk responses?",
+    "answer": "Prioritize using a risk matrix: Likelihood × Impact = Risk Score. Threats with high likelihood and high impact get the most urgent attention.\n\nFour risk responses:\n1. Mitigate — add a control (authentication, encryption, rate limiting) to reduce likelihood or impact.\n2. Eliminate — remove the vulnerable feature or data flow entirely.\n3. Transfer — pass risk to a third party (insurance, cloud provider SLA, outsourced service).\n4. Accept — consciously acknowledge the risk and choose not to address it. Document this decision with rationale.\n\nEvery identified threat must receive one of these four responses. Untracked threats are accepted by default — but not explicitly, which is the worst outcome.",
+    "category": "senior"
+  },
+  {
+    "id": "tm-senior-02",
+    "question": "What are common mistakes teams make when threat modeling?",
+    "answer": "1. Modeling too much — a model with 100+ elements is unreadable. Start with a specific feature or component.\n2. Skipping trust boundaries — if every element is in the same trust zone, every STRIDE answer is 'not applicable.' Trust boundaries create the threats.\n3. Threat modeling alone — the best models come from mixed groups: the engineer who built it, a security person, and a product person.\n4. No follow-through — a threat model without tracked mitigations, owners, and deadlines is security theater.\n5. Treating it as a one-time project — systems evolve. Threat models must be living documents updated with each significant change.",
+    "category": "senior"
+  }
+]

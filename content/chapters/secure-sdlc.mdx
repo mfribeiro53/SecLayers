@@ -1,0 +1,130 @@
+# The Secure SDLC
+
+The Secure Software Development Lifecycle (Secure SDLC) integrates security activities into every phase of development — from requirements to operations. The core idea is **shift-left:** move security work earlier in the process where fixes cost less and have more impact.
+
+A vulnerability caught during design review costs an hour to fix. The same vulnerability caught in production costs days of incident response, potentially millions in breach costs, and a damaged reputation.
+
+<Callout kind="insight">
+Shift-left isn't about tools — it's about asking *"what could go wrong?"* before writing code. SAST, DAST, and dependency scanning are guardrails for what slips past you; threat modeling, secure design reviews, and paved-road internal libraries are what keep classes of bugs from ever existing.
+</Callout>
+
+---
+
+## The Phases
+
+### 1. Requirements
+
+Security starts before code. For every feature:
+
+- **Security requirements:** "Only authenticated users can access this endpoint." "Payment data must be encrypted at rest." These are functional requirements, not nice-to-haves.
+- **Abuse cases:** Not just "what should this feature do" but "how could someone misuse it?" A file upload feature should consider: what if someone uploads a 10 GB file? A .exe? A file named `../../../etc/passwd`?
+- **Compliance mapping:** Which regulatory requirements apply? PCI-DSS for payments, HIPAA for health data, GDPR for EU personal data.
+
+**Gate:** Security requirements documented and reviewed before design begins.
+
+---
+
+### 2. Design
+
+- **Threat modeling:** STRIDE on the feature's data flow diagram. (See Chapter 1.)
+- **Architecture review:** Does the design follow security patterns? Is authentication centralized? Is the principle of least privilege applied?
+- **Third-party assessment:** What libraries, services, and APIs does this feature depend on? Are they actively maintained? Known vulnerabilities?
+
+**Gate:** Threat model reviewed and accepted. High-risk threats have mitigation plans.
+
+---
+
+### 3. Development
+
+- **Secure coding standards:** Team agreement on patterns — parameterized queries, output encoding, input validation, no hardcoded secrets.
+- **SAST (Static Application Security Testing):** Tools like Semgrep, CodeQL, or SonarQube scan source code for known vulnerability patterns. Run in CI/CD on every push.
+- **SCA (Software Composition Analysis):** Tools like Dependabot, Snyk, or OWASP Dependency-Check scan dependencies for known CVEs.
+- **Secret scanning:** Tools like git-secrets, TruffleHog, or GitHub secret scanning detect secrets before they reach the repository.
+- **Code review:** Every pull request gets a security review. Not just "does it work" but "is it safe." Checklists help: no string concatenation in SQL, no `innerHTML` with user data, input validated at the boundary.
+
+**Gate:** SAST/SCA/secret scan passing in CI/CD. All high-severity findings resolved or waived with justification.
+
+---
+
+### 4. Testing
+
+- **DAST (Dynamic Application Security Testing):** Tools like OWASP ZAP or Burp Suite scan the running application for vulnerabilities. Run against staging environments on every deploy.
+- **Penetration testing:** Manual testing by security engineers or external firms. Finds business logic flaws that automated tools miss. Annual for critical systems, per-feature for high-risk features.
+- **Fuzzing:** Send malformed input to interfaces and observe behavior. Effective for parsers, file uploads, and protocol implementations.
+- **Security regression tests:** Automated tests that verify known vulnerabilities stay fixed. A test that sends XSS payloads and verifies they're encoded — run it every build.
+
+**Gate:** DAST scan clean. Pen test findings accepted or resolved. Security regression tests passing.
+
+---
+
+### 5. Deployment
+
+- **Infrastructure as Code (IaC) scanning:** Tools like Checkov, tfsec, or Trivy scan Terraform, CloudFormation, and Dockerfiles for misconfigurations.
+- **Container scanning:** Scan container images for known vulnerabilities before deployment.
+- **Hardening:** Remove default credentials, disable unnecessary services, apply least-privilege IAM roles.
+- **Secrets injection:** Secrets come from a vault (HashiCorp Vault, AWS Secrets Manager), never from environment variables in plaintext configs.
+
+**Gate:** IaC scan clean. Container scan clean. Production IAM roles reviewed.
+
+---
+
+### 6. Operations
+
+- **Logging and monitoring:** Log authentication events, authorization failures, input validation failures, and sensitive operations. Ship logs to a SIEM. (See Chapter 36.)
+- **Incident response:** Documented process. Who's on call? What's the escalation path? When do you notify users? When do you notify regulators?
+- **Vulnerability management:** Process for triaging and patching disclosed CVEs in dependencies and infrastructure. Defined SLA: critical vulnerabilities patched within 24 hours, high within 7 days.
+- **Bug bounty / vulnerability disclosure:** A channel for external researchers to report vulnerabilities. `security@example.com`. A clear policy — no legal threats for good-faith research.
+
+**Gate:** Monitoring dashboards green. Incident response tested (tabletop exercises). Vulnerability SLA met.
+
+---
+
+## The Shift-Left Principle
+
+Cost of fixing a vulnerability escalates rapidly through the SDLC:
+
+```
+Requirements → Design → Development → Testing → Deployment → Operations
+$1           → $10    → $100        → $1,000  → $10,000   → $100,000+
+```
+
+A design flaw caught in the threat model costs a whiteboard session. The same flaw caught in production costs an incident, possibly a breach disclosure, possibly legal liability. **Every dollar spent on security in design saves $100 in production.**
+
+---
+
+## Tooling Landscape
+
+| Phase | Tool Category | Examples |
+|-------|--------------|----------|
+| Development | SAST | Semgrep, CodeQL, SonarQube |
+| Development | SCA | Dependabot, Snyk, OWASP Dependency-Check |
+| Development | Secret scanning | TruffleHog, git-secrets, GitHub secret scanning |
+| Testing | DAST | OWASP ZAP, Burp Suite, Nikto |
+| Testing | Fuzzing | AFL, libFuzzer, OSS-Fuzz |
+| Deployment | IaC scanning | Checkov, tfsec, Trivy |
+| Deployment | Container scanning | Trivy, Grype, Docker Scout |
+| Operations | SIEM | Splunk, ELK, Datadog |
+| Operations | Runtime protection | Falco, WAF, RASP |
+
+---
+
+## Summary
+
+| Phase | Key Activities |
+|-------|---------------|
+| Requirements | Security requirements, abuse cases, compliance mapping |
+| Design | Threat modeling, architecture review, third-party assessment |
+| Development | Secure coding, SAST, SCA, secret scanning, security code review |
+| Testing | DAST, penetration testing, fuzzing, security regression tests |
+| Deployment | IaC scanning, container scanning, hardening, secrets injection |
+| Operations | Logging/monitoring, incident response, vuln management, bug bounty |
+
+The Secure SDLC is not a checklist — it's a muscle. Teams that practice it on every feature build security into their culture. Teams that treat it as an annual audit produce audit artifacts, not security.
+
+---
+
+## Misconception
+
+**Myth:** "We run a penetration test once a year, so we're secure."
+
+**Reality:** A penetration test is a point-in-time assessment — it tells you what was exploitable on the day of the test. It doesn't find design flaws introduced in the next sprint, misconfigurations from the next deploy, or CVEs disclosed the day after the test report was delivered. Penetration testing is an important layer, but it's the last line of defense — not the first. A Secure SDLC prevents vulnerabilities from reaching production in the first place.

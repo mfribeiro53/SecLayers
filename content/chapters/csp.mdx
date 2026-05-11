@@ -1,0 +1,92 @@
+# Content Security Policy
+
+CSP is a browser-enforced security policy delivered via HTTP header. It tells the browser: "only load scripts from these sources, only connect to these URLs, don't execute inline scripts." The browser enforces it — the server sets the rules.
+
+CSP is the most impactful security header and the hardest to deploy correctly. Done right, it makes XSS exploitation nearly impossible. Done wrong (with `'unsafe-inline'`), it provides no protection.
+
+<Callout kind="insight">
+A well-written CSP turns an injected `<script>` from a successful exploit into a browser refusal. The trap is `'unsafe-inline'` — it defeats CSP's entire purpose. **Use nonces with `'strict-dynamic'`**, add `object-src 'none'` and `base-uri 'self'`, deploy in report-only first to find legitimate violations, and you've defused the entire XSS class.
+</Callout>
+
+---
+
+## How CSP Works
+
+```http
+Content-Security-Policy: default-src 'self'; script-src 'self' https://cdn.example.com; style-src 'self' 'unsafe-inline'; img-src *; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
+```
+
+The browser parses this policy and:
+1. Blocks any script not from `'self'` or `cdn.example.com`
+2. Blocks inline `<script>` tags (no `'unsafe-inline'` in script-src)
+3. Blocks `<object>`, `<embed>` entirely (`object-src 'none'`)
+4. Prevents `<base>` tag injection
+
+---
+
+## Key Directives
+
+| Directive | Controls |
+|-----------|----------|
+| `default-src` | Fallback for all directives |
+| `script-src` | JavaScript sources |
+| `style-src` | CSS sources |
+| `img-src` | Image sources |
+| `connect-src` | XHR, fetch, WebSocket destinations |
+| `font-src` | Font sources |
+| `object-src` | `<object>`, `<embed>` |
+| `base-uri` | `<base>` tag URLs |
+| `frame-ancestors` | Who can iframe this page (replaces X-Frame-Options) |
+
+---
+
+## Nonces vs Hashes vs Unsafe-Inline
+
+**Nonces:** A random value per response, included in CSP and on `<script>` tags.
+
+```http
+Content-Security-Policy: script-src 'nonce-r4nd0m'
+```
+```html
+<script nonce="r4nd0m">...</script>
+```
+
+Only scripts with matching nonce execute. Nonces must be unpredictable.
+
+**Hashes:** SHA-256 of the script content.
+
+```http
+Content-Security-Policy: script-src 'sha256-xNf...'
+```
+
+**'unsafe-inline':** Allows all inline scripts. Defeats CSP. Never use in production.
+
+---
+
+## Deployment Strategy
+
+1. Start with `Content-Security-Policy-Report-Only` — logs violations but doesn't block
+2. Collect reports, fix legitimate inline scripts (move to external files or add nonces)
+3. Switch to enforcing policy once violations stabilize
+4. Monitor `report-uri` for new violations
+
+---
+
+## Summary
+
+| Rule | Why |
+|------|-----|
+| Never `'unsafe-inline'` in script-src | Allows all inline scripts |
+| Never `'unsafe-eval'` | Allows `eval()` |
+| Always `object-src 'none'` | Blocks Flash, ActiveX |
+| Always `base-uri 'self'` | Prevents `<base>` hijacking |
+| Use nonces for dynamic scripts | More flexible than hashes |
+| Report-only first | Avoid breaking production |
+
+---
+
+## Misconception
+
+**Myth:** "We added a CSP, so we're protected from XSS."
+
+**Reality:** CSP is defense-in-depth. It stops script execution from injected tags, but it doesn't prevent the injection itself. Output encoding is still required. And a CSP with `'unsafe-inline'` or `'unsafe-eval'` provides nearly zero protection. A CSP must be strict to be effective.
