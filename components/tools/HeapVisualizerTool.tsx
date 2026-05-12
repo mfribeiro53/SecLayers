@@ -76,13 +76,13 @@ export default function HeapVisualizerTool() {
         <div className="border border-subtle rounded-lg overflow-hidden font-mono text-xs">
           {chunks.map((chunk) => {
             const bgColor =
-              chunk.status === "allocated" ? "bg-emerald-50" :
-              chunk.status === "freed" ? "bg-amber-50" :
-              "bg-red-50";
+              chunk.status === "allocated" ? "bg-success-subtle" :
+              chunk.status === "freed" ? "bg-warning-subtle" :
+              "bg-danger-subtle";
             const borderColor =
-              chunk.status === "allocated" ? "border-emerald-200" :
-              chunk.status === "freed" ? "border-amber-200" :
-              "border-red-200";
+              chunk.status === "allocated" ? "border-success-subtle" :
+              chunk.status === "freed" ? "border-warning-subtle" :
+              "border-danger-subtle";
             return (
               <button
                 key={chunk.id}
@@ -92,11 +92,11 @@ export default function HeapVisualizerTool() {
                 <div className="flex justify-between items-center">
                   <div>
                     <span className="text-slate-400 mr-2">{chunk.addr}</span>
-                    <span className={`font-semibold ${chunk.status === "allocated" ? "text-emerald-700" : chunk.status === "freed" ? "text-amber-700" : "text-red-700"}`}>
+                    <span className={`font-semibold ${chunk.status === "allocated" ? "text-success" : chunk.status === "freed" ? "text-warning" : "text-danger"}`}>
                       Chunk {chunk.id} ({chunk.size}B) — {chunk.status}
                     </span>
                   </div>
-                  {selectedId === chunk.id && <span className="text-blue-500 text-[10px]">SELECTED</span>}
+                  {selectedId === chunk.id && <span className="text-info text-[10px]">SELECTED</span>}
                 </div>
                 <p className="mt-0.5 text-slate-500">{chunk.data}</p>
               </button>
@@ -105,7 +105,7 @@ export default function HeapVisualizerTool() {
         </div>
 
         {message && (
-          <div className={`p-3 rounded-lg border text-xs font-mono ${message.includes("⚠") || message.includes("detected") ? "bg-red-50 border-red-200 text-red-700" : "bg-surface-2 border-subtle text-secondary"}`}>{message}</div>
+          <div className={`p-3 rounded-lg border text-xs font-mono ${message.includes("⚠") || message.includes("detected") ? "bg-danger-subtle border-danger-subtle text-danger" : "bg-surface-2 border-subtle text-secondary"}`}>{message}</div>
         )}
 
         <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm text-secondary">

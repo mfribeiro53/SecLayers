@@ -46,7 +46,7 @@ export default function APKExplorerTool() {
               key={comp.name}
               onClick={() => setSelected(comp)}
               className={`w-full text-left px-4 py-2.5 flex items-center gap-2 border-b border-subtle hover:bg-surface-2 transition-colors text-sm ${
-                selected.name === comp.name ? "bg-blue-50 border-l-2 border-l-blue-500" : ""
+                selected.name === comp.name ? "bg-info-subtle border-l-2 border-l-blue-500" : ""
               }`}
             >
               <span>📄</span>
@@ -60,7 +60,7 @@ export default function APKExplorerTool() {
           <p className="text-sm font-semibold text-secondary">{selected.name}</p>
           <p className="text-xs text-secondary mt-1">{selected.description}</p>
           {selected.riskNote && (
-            <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800">
+            <div className="mt-2 p-2 rounded bg-warning-subtle border border-warning-subtle text-xs text-warning">
               ⚠️ {selected.riskNote}
             </div>
           )}
@@ -77,12 +77,12 @@ export default function APKExplorerTool() {
         {showFindings && (
           <div className="space-y-2">
             {VULNERABLE_FINDINGS.map((f, i) => (
-              <div key={i} className="p-3 rounded-lg border border-red-200 bg-red-50">
+              <div key={i} className="p-3 rounded-lg border border-danger-subtle bg-danger-subtle">
                 <div className="flex justify-between items-start">
-                  <p className="text-sm font-medium text-red-800">{f.finding}</p>
-                  <span className="text-xs px-1.5 py-0.5 rounded bg-red-200 text-red-800 font-bold">{f.severity}</span>
+                  <p className="text-sm font-medium text-danger">{f.finding}</p>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-danger-muted text-danger font-bold">{f.severity}</span>
                 </div>
-                <p className="text-xs text-red-700 mt-1">{f.impact}</p>
+                <p className="text-xs text-danger mt-1">{f.impact}</p>
               </div>
             ))}
           </div>

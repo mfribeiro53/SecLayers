@@ -138,7 +138,7 @@ export default function CryptoPlaygroundTool() {
         </div>
 
         {/* AES-GCM */}
-        <div className="p-4 rounded-lg border border-indigo-200 bg-indigo-50">
+        <div className="p-4 rounded-lg border border-indigo-subtle bg-indigo-subtle">
           <p className="text-sm font-medium text-secondary mb-2">
             AES-256-GCM Encryption (confidentiality — reversible)
           </p>
@@ -169,7 +169,7 @@ export default function CryptoPlaygroundTool() {
           {aesKeyHex && (
             <div className="mb-2">
               <p className="text-xs text-slate-500">Key (hex):</p>
-              <pre className="p-1.5 rounded text-xs font-mono bg-indigo-100 border border-indigo-200 break-all whitespace-pre-wrap">
+              <pre className="p-1.5 rounded text-xs font-mono bg-indigo-muted border border-indigo-subtle break-all whitespace-pre-wrap">
                 {aesKeyHex}
               </pre>
             </div>
@@ -187,7 +187,7 @@ export default function CryptoPlaygroundTool() {
           {decrypted && (
             <div>
               <p className="text-xs text-slate-500">Decrypted:</p>
-              <pre className="p-1.5 rounded text-xs font-mono bg-emerald-100 border border-emerald-200 break-all whitespace-pre-wrap">
+              <pre className="p-1.5 rounded text-xs font-mono bg-success-muted border border-success-subtle break-all whitespace-pre-wrap">
                 {decrypted}
               </pre>
             </div>
@@ -199,7 +199,7 @@ export default function CryptoPlaygroundTool() {
         </div>
 
         {error && (
-          <div className="p-3 rounded-md bg-red-50 border border-red-200 text-red-700 text-xs font-mono">
+          <div className="p-3 rounded-md bg-danger-subtle border border-danger-subtle text-danger text-xs font-mono">
             {error}
           </div>
         )}

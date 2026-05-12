@@ -212,13 +212,13 @@ export default function SecretSprawlTool() {
               matches.map((m, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 p-2 bg-red-50 border border-red-200 rounded text-xs"
+                  className="flex items-start gap-2 p-2 bg-danger-subtle border border-danger-subtle rounded text-xs"
                 >
                   <span className="text-red-500 font-bold shrink-0 mt-0.5">!</span>
                   <div>
-                    <span className="font-semibold text-red-800">{m.ruleName}</span>
+                    <span className="font-semibold text-danger">{m.ruleName}</span>
                     <span className="text-slate-400 ml-2">line {m.line}</span>
-                    <p className="font-mono text-[10px] text-red-700 mt-0.5">{m.value}</p>
+                    <p className="font-mono text-[10px] text-danger mt-0.5">{m.value}</p>
                   </div>
                 </div>
               ))
@@ -228,9 +228,9 @@ export default function SecretSprawlTool() {
 
         {/* Fix advice */}
         {loc && (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded text-xs">
-            <p className="font-medium text-emerald-800 mb-1">Fix</p>
-            <p className="text-emerald-700">{loc.fix}</p>
+          <div className="p-3 bg-success-subtle border border-success-subtle rounded text-xs">
+            <p className="font-medium text-success mb-1">Fix</p>
+            <p className="text-success">{loc.fix}</p>
           </div>
         )}
 

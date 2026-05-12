@@ -331,12 +331,12 @@ export default function SQLiSandboxTool() {
             </p>
             {mode === "vulnerable" ? (
               <>
-                <pre className="p-3 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap bg-red-50 border border-red-200">
-                  <span className="text-red-800 opacity-60">{"SELECT id, username, role FROM users WHERE username = '"}</span>
+                <pre className="p-3 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap bg-danger-subtle border border-danger-subtle">
+                  <span className="text-danger opacity-60">{"SELECT id, username, role FROM users WHERE username = '"}</span>
                   <span className="bg-orange-200 text-orange-900 rounded px-0.5">{username || " "}</span>
-                  <span className="text-red-800 opacity-60">{"' AND password = '"}</span>
+                  <span className="text-danger opacity-60">{"' AND password = '"}</span>
                   <span className="bg-orange-200 text-orange-900 rounded px-0.5">{password || " "}</span>
-                  <span className="text-red-800 opacity-60">{"'"}</span>
+                  <span className="text-danger opacity-60">{"'"}</span>
                 </pre>
                 <p className="mt-1 text-xs text-slate-500">
                   <span className="inline-block w-3 h-3 bg-orange-200 border border-orange-300 rounded align-middle mr-1" />
@@ -344,7 +344,7 @@ export default function SQLiSandboxTool() {
                 </p>
               </>
             ) : (
-              <pre className="p-3 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap bg-emerald-50 text-emerald-800 border border-emerald-200">
+              <pre className="p-3 rounded-md text-xs font-mono overflow-x-auto whitespace-pre-wrap bg-success-subtle text-success border border-success-subtle">
                 {constructedQuery}
               </pre>
             )}
@@ -402,8 +402,8 @@ export default function SQLiSandboxTool() {
 
         {/* Error */}
         {error && (
-          <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-sm font-mono">
-            <p className="font-medium text-amber-900 mb-1">Database Error</p>
+          <div className="p-3 rounded-md bg-warning-subtle border border-warning-subtle text-warning text-sm font-mono">
+            <p className="font-medium text-warning mb-1">Database Error</p>
             {error}
           </div>
         )}

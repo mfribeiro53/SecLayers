@@ -115,11 +115,11 @@ const SAMPLE_BAD = `Server: Apache/2.4.1
 X-Powered-By: PHP/5.3.2`;
 
 const GRADE_COLORS: Record<string, string> = {
-  A: "bg-emerald-100 text-emerald-800",
-  B: "bg-blue-100 text-blue-800",
-  C: "bg-yellow-100 text-yellow-800",
-  D: "bg-orange-100 text-orange-800",
-  F: "bg-red-100 text-red-800",
+  A: "bg-success-muted text-success",
+  B: "bg-info-muted text-info",
+  C: "bg-yellow-subtle text-yellow",
+  D: "bg-orange-subtle text-orange",
+  F: "bg-danger-muted text-danger",
 };
 
 export default function HeaderGraderTool() {
@@ -130,8 +130,8 @@ export default function HeaderGraderTool() {
     <ToolShell title="HTTP Header Grader" description="Paste HTTP response headers and get a security grade for each.">
       <div className="space-y-4">
         <div className="flex gap-2 mb-2">
-          <button onClick={() => setHeaders(SAMPLE_GOOD)} className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200">Load Good</button>
-          <button onClick={() => setHeaders(SAMPLE_BAD)} className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200">Load Bad</button>
+          <button onClick={() => setHeaders(SAMPLE_GOOD)} className="px-2 py-1 text-xs rounded bg-success-muted text-success hover:bg-success-muted">Load Good</button>
+          <button onClick={() => setHeaders(SAMPLE_BAD)} className="px-2 py-1 text-xs rounded bg-danger-muted text-danger hover:bg-danger-muted">Load Bad</button>
         </div>
         <textarea value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Paste HTTP response headers..." className="w-full h-32 px-3 py-2 border border-subtle rounded-md font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <button onClick={() => setResults(gradeHeaders(headers))} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">Grade Headers</button>

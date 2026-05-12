@@ -51,10 +51,10 @@ const COMPONENTS: Component[] = [
 ];
 
 const SEV_COLOR: Record<string, string> = {
-  critical: "bg-red-100 text-red-700 border-red-300",
-  high:     "bg-orange-100 text-orange-700 border-orange-300",
-  medium:   "bg-amber-100 text-amber-700 border-amber-300",
-  low:      "bg-blue-100 text-blue-700 border-blue-300",
+  critical: "bg-danger-muted text-danger border-red-300",
+  high:     "bg-orange-subtle text-orange border-orange-300",
+  medium:   "bg-warning-muted text-warning border-amber-300",
+  low:      "bg-info-muted text-info border-blue-300",
 };
 
 const SEV_DOT: Record<string, string> = {
@@ -171,10 +171,10 @@ export default function SBOMExplorerTool() {
               <div className="px-3 py-1.5 bg-elevated rounded">
                 <span className="font-semibold">{COMPONENTS.length}</span> components
               </div>
-              <div className="px-3 py-1.5 bg-orange-50 border border-orange-200 rounded text-orange-700">
+              <div className="px-3 py-1.5 bg-orange-subtle border border-orange-subtle rounded text-orange">
                 <span className="font-semibold">{totalVulns}</span> vulnerabilities
               </div>
-              <div className="px-3 py-1.5 bg-red-50 border border-red-200 rounded text-red-700">
+              <div className="px-3 py-1.5 bg-danger-subtle border border-danger-subtle rounded text-danger">
                 <span className="font-semibold">{criticalHigh}</span> critical/high
               </div>
             </div>
@@ -215,7 +215,7 @@ export default function SBOMExplorerTool() {
                   <span
                     className={`px-1.5 py-0.5 rounded text-[10px] ${
                       comp.direct
-                        ? "bg-blue-100 text-blue-700"
+                        ? "bg-info-muted text-info"
                         : "bg-elevated text-slate-500"
                     }`}
                   >
@@ -249,7 +249,7 @@ export default function SBOMExplorerTool() {
                   <span className="text-slate-500">{selectedComp.license}</span>
                 </div>
                 {selectedComp.vulns.length === 0 ? (
-                  <p className="text-xs text-emerald-700">No known vulnerabilities.</p>
+                  <p className="text-xs text-success">No known vulnerabilities.</p>
                 ) : (
                   <div className="space-y-2">
                     {selectedComp.vulns.map((v) => (

@@ -225,106 +225,60 @@ body {
   border: 1px solid var(--border-subtle);
 }
 
+/* ── Semantic tint utilities ─────────────────────────────────────────
+   Dark-aware callout block utilities used by tool components.
+   Replace Tailwind light-mode tint classes (bg-red-50, text-red-800…). */
+
+.bg-danger-subtle  { background-color: rgba(248,113,113,0.10); }
+.bg-danger-muted   { background-color: rgba(248,113,113,0.18); }
+.hover\:bg-danger-muted:hover  { background-color: rgba(248,113,113,0.18); }
+.bg-success-subtle { background-color: rgba(52,211,153,0.10); }
+.bg-success-muted  { background-color: rgba(52,211,153,0.18); }
+.hover\:bg-success-muted:hover { background-color: rgba(52,211,153,0.18); }
+.bg-warning-subtle { background-color: rgba(251,191,36,0.10); }
+.bg-warning-muted  { background-color: rgba(251,191,36,0.18); }
+.bg-info-subtle    { background-color: rgba(96,165,250,0.10); }
+.bg-info-muted     { background-color: rgba(96,165,250,0.18); }
+.bg-orange-subtle  { background-color: rgba(251,146,60,0.14); }
+.bg-purple-subtle  { background-color: rgba(192,132,252,0.14); }
+.bg-pink-subtle    { background-color: rgba(244,114,182,0.14); }
+.bg-cyan-subtle    { background-color: rgba(103,232,249,0.14); }
+.bg-violet-subtle  { background-color: rgba(167,139,250,0.14); }
+.bg-indigo-subtle  { background-color: rgba(129,140,248,0.10); }
+.bg-indigo-muted   { background-color: rgba(129,140,248,0.18); }
+.bg-rose-subtle    { background-color: rgba(251,113,133,0.14); }
+.bg-yellow-subtle  { background-color: rgba(250,204,21,0.14); }
+
+.border-danger-subtle  { border-color: rgba(248,113,113,0.35); }
+.border-success-subtle { border-color: rgba(52,211,153,0.35); }
+.border-warning-subtle { border-color: rgba(251,191,36,0.35); }
+.border-info-subtle    { border-color: rgba(96,165,250,0.35); }
+.border-orange-subtle  { border-color: rgba(251,146,60,0.35); }
+.border-purple-subtle  { border-color: rgba(192,132,252,0.35); }
+.border-pink-subtle    { border-color: rgba(244,114,182,0.35); }
+.border-violet-subtle  { border-color: rgba(167,139,250,0.35); }
+.border-indigo-subtle  { border-color: rgba(129,140,248,0.35); }
+.border-rose-subtle    { border-color: rgba(251,113,133,0.35); }
+.border-yellow-subtle  { border-color: rgba(250,204,21,0.35); }
+
+.text-danger  { color: #fca5a5; }
+.text-success { color: #6ee7b7; }
+.text-warning { color: #fcd34d; }
+.text-info    { color: #93c5fd; }
+.text-orange  { color: #fdba74; }
+.text-purple  { color: #d8b4fe; }
+.text-pink    { color: #f9a8d4; }
+.text-cyan    { color: #67e8f9; }
+.text-violet  { color: #c4b5fd; }
+.text-yellow  { color: #fde047; }
+.text-rose    { color: #fda4af; }
+.hover\:text-info:hover   { color: #93c5fd; }
+.hover\:text-danger:hover { color: #fca5a5; }
+
 /* ─── Tool dark-mode remap ───────────────────────────────────
-   Surface/text/border slate classes have been replaced in components
-   with the semantic tokens above (surface-2, elevated, primary, etc.).
-   Remaining overrides handle colored tint blocks and interactive elements
-   that still reference light-mode Tailwind color classes. */
-
-/* Tinted callout blocks inside tools — keep tint, soften */
-.tool-surface .bg-red-50 { background-color: rgba(248,113,113,0.10) !important; }
-.tool-surface .bg-red-100 { background-color: rgba(248,113,113,0.18) !important; }
-.tool-surface .border-red-100,
-.tool-surface .border-red-200 { border-color: rgba(248,113,113,0.35) !important; }
-.tool-surface .text-red-600,
-.tool-surface .text-red-700,
-.tool-surface .text-red-800 { color: #fca5a5 !important; }
-
-.tool-surface .bg-emerald-50 { background-color: rgba(52,211,153,0.10) !important; }
-.tool-surface .bg-emerald-100 { background-color: rgba(52,211,153,0.18) !important; }
-.tool-surface .border-emerald-100,
-.tool-surface .border-emerald-200 { border-color: rgba(52,211,153,0.35) !important; }
-.tool-surface .text-emerald-600,
-.tool-surface .text-emerald-700,
-.tool-surface .text-emerald-800 { color: #6ee7b7 !important; }
-
-.tool-surface .bg-amber-50 { background-color: rgba(251,191,36,0.10) !important; }
-.tool-surface .border-amber-100,
-.tool-surface .border-amber-200 { border-color: rgba(251,191,36,0.35) !important; }
-.tool-surface .text-amber-600,
-.tool-surface .text-amber-700,
-.tool-surface .text-amber-800,
-.tool-surface .text-amber-900 { color: #fcd34d !important; }
-
-.tool-surface .bg-blue-50 { background-color: rgba(96,165,250,0.10) !important; }
-.tool-surface .bg-blue-100 { background-color: rgba(96,165,250,0.18) !important; }
-.tool-surface .text-blue-500,
-.tool-surface .text-blue-600,
-.tool-surface .text-blue-700,
-.tool-surface .text-blue-800 { color: #93c5fd !important; }
-.tool-surface .border-blue-100,
-.tool-surface .border-blue-200 { border-color: rgba(96,165,250,0.35) !important; }
-
-.tool-surface .bg-orange-50,
-.tool-surface .bg-orange-100 { background-color: rgba(251,146,60,0.14) !important; }
-.tool-surface .border-orange-100,
-.tool-surface .border-orange-200 { border-color: rgba(251,146,60,0.35) !important; }
-.tool-surface .text-orange-600,
-.tool-surface .text-orange-700,
-.tool-surface .text-orange-800 { color: #fdba74 !important; }
-
-.tool-surface .bg-yellow-50,
-.tool-surface .bg-yellow-100 { background-color: rgba(250,204,21,0.14) !important; }
-.tool-surface .border-yellow-100,
-.tool-surface .border-yellow-200 { border-color: rgba(250,204,21,0.35) !important; }
-.tool-surface .text-yellow-600,
-.tool-surface .text-yellow-700,
-.tool-surface .text-yellow-800 { color: #fde047 !important; }
-
-.tool-surface .bg-purple-50,
-.tool-surface .bg-purple-100 { background-color: rgba(192,132,252,0.14) !important; }
-.tool-surface .border-purple-100,
-.tool-surface .border-purple-200 { border-color: rgba(192,132,252,0.35) !important; }
-.tool-surface .text-purple-600,
-.tool-surface .text-purple-700,
-.tool-surface .text-purple-800 { color: #d8b4fe !important; }
-
-.tool-surface .bg-pink-50,
-.tool-surface .bg-pink-100 { background-color: rgba(244,114,182,0.14) !important; }
-.tool-surface .border-pink-100,
-.tool-surface .border-pink-200 { border-color: rgba(244,114,182,0.35) !important; }
-.tool-surface .text-pink-600,
-.tool-surface .text-pink-700,
-.tool-surface .text-pink-800 { color: #f9a8d4 !important; }
-
-.tool-surface .bg-cyan-50,
-.tool-surface .bg-cyan-100 { background-color: rgba(103,232,249,0.14) !important; }
-.tool-surface .text-cyan-600,
-.tool-surface .text-cyan-700,
-.tool-surface .text-cyan-800 { color: #67e8f9 !important; }
-
-.tool-surface .bg-violet-50,
-.tool-surface .bg-violet-100 { background-color: rgba(167,139,250,0.14) !important; }
-.tool-surface .border-violet-200 { border-color: rgba(167,139,250,0.35) !important; }
-.tool-surface .text-violet-600,
-.tool-surface .text-violet-700,
-.tool-surface .text-violet-800 { color: #c4b5fd !important; }
-
-.tool-surface .bg-indigo-50 { background-color: rgba(129,140,248,0.10) !important; }
-.tool-surface .bg-indigo-100 { background-color: rgba(129,140,248,0.18) !important; }
-.tool-surface .bg-indigo-500,
-.tool-surface .bg-indigo-600 { background-color: var(--accent) !important; }
-.tool-surface .border-indigo-100,
-.tool-surface .border-indigo-200 { border-color: rgba(129,140,248,0.35) !important; }
-
-.tool-surface .bg-rose-50,
-.tool-surface .bg-rose-100 { background-color: rgba(251,113,133,0.14) !important; }
-.tool-surface .border-rose-100,
-.tool-surface .border-rose-200 { border-color: rgba(251,113,133,0.35) !important; }
-.tool-surface .text-rose-600,
-.tool-surface .text-rose-700 { color: #fda4af !important; }
-
-/* `text-green-400` in monospace output stays green (terminal-style) */
+   Inputs, pre, table, and button styling for tool surfaces.
+   Tint classes (bg-red-50, text-red-800, etc.) are now handled
+   by the semantic utility classes defined above. */
 
 .tool-surface input,
 .tool-surface textarea,
@@ -361,35 +315,21 @@ body {
   color: var(--text-primary);
 }
 
-/* Buttons: lift the visual hierarchy of action buttons in tools */
+/* Buttons: remap blue→accent, red→vivid-red, emerald→vivid-green */
 .tool-surface .bg-blue-500,
 .tool-surface .bg-blue-600,
-.tool-surface .bg-blue-700 {
-  background-color: var(--accent) !important;
-}
+.tool-surface .bg-blue-700 { background-color: var(--accent); }
 .tool-surface .hover\:bg-blue-600:hover,
 .tool-surface .hover\:bg-blue-700:hover,
-.tool-surface .hover\:bg-blue-800:hover {
-  background-color: #818cf8 !important;
-}
-
+.tool-surface .hover\:bg-blue-800:hover { background-color: #818cf8; }
 .tool-surface .bg-red-500,
-.tool-surface .bg-red-600 {
-  background-color: #ef4444 !important;
-}
+.tool-surface .bg-red-600 { background-color: #ef4444; }
 .tool-surface .hover\:bg-red-600:hover,
-.tool-surface .hover\:bg-red-700:hover {
-  background-color: #f87171 !important;
-}
-
+.tool-surface .hover\:bg-red-700:hover { background-color: #f87171; }
 .tool-surface .bg-emerald-500,
-.tool-surface .bg-emerald-600 {
-  background-color: #10b981 !important;
-}
+.tool-surface .bg-emerald-600 { background-color: #10b981; }
 .tool-surface .hover\:bg-emerald-600:hover,
-.tool-surface .hover\:bg-emerald-700:hover {
-  background-color: #34d399 !important;
-}
+.tool-surface .hover\:bg-emerald-700:hover { background-color: #34d399; }
 
 /* Disabled buttons should look obviously disabled, not just faded white */
 .tool-surface button:disabled {

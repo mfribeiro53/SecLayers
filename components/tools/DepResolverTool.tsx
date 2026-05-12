@@ -77,12 +77,12 @@ export default function DepResolverTool() {
         <div className="space-y-2">
           <p className="text-xs font-semibold text-secondary">Packages seen by the resolver:</p>
           {scenario.packages.map((pkg, i) => (
-            <div key={i} className={`flex items-start gap-3 p-3 rounded border text-xs ${pkg.malicious ? "border-red-300 bg-red-50" : "border-subtle bg-surface-2"}`}>
+            <div key={i} className={`flex items-start gap-3 p-3 rounded border text-xs ${pkg.malicious ? "border-red-300 bg-danger-subtle" : "border-subtle bg-surface-2"}`}>
               <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${pkg.registry === "internal" ? "bg-blue-500" : pkg.malicious ? "bg-red-500" : "bg-green-500"}`} />
               <div className="flex-1 min-w-0">
                 <span className="font-mono font-bold text-primary">{pkg.name}</span>
                 <span className="ml-2 text-slate-500">v{pkg.version}</span>
-                <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${pkg.registry === "internal" ? "bg-blue-100 text-blue-700" : "bg-elevated text-secondary"}`}>
+                <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${pkg.registry === "internal" ? "bg-info-muted text-info" : "bg-elevated text-secondary"}`}>
                   {pkg.registry === "internal" ? "internal registry" : "npm (public)"}
                 </span>
                 <p className="mt-1 text-slate-500">{pkg.description}</p>
@@ -97,7 +97,7 @@ export default function DepResolverTool() {
         </button>
 
         {resolved && (
-          <div className={`p-3 rounded border text-xs ${scenario.resolvedFrom === "public" && scenario.id === "confusion" ? "border-red-400 bg-red-50" : "border-emerald-300 bg-emerald-50"}`}>
+          <div className={`p-3 rounded border text-xs ${scenario.resolvedFrom === "public" && scenario.id === "confusion" ? "border-red-400 bg-danger-subtle" : "border-emerald-300 bg-success-subtle"}`}>
             <p className="font-semibold mb-1">
               {scenario.resolvedFrom === "public" && scenario.id === "confusion"
                 ? "ATTACK SUCCEEDED — malicious package installed"
@@ -112,9 +112,9 @@ export default function DepResolverTool() {
             </p>
 
             {scenario.id === "confusion" && (
-              <div className="mt-2 pt-2 border-t border-red-200">
-                <p className="font-semibold text-red-700 mb-1">Common attack payloads:</p>
-                <ul className="list-disc list-inside space-y-0.5 text-red-700">
+              <div className="mt-2 pt-2 border-t border-danger-subtle">
+                <p className="font-semibold text-danger mb-1">Common attack payloads:</p>
+                <ul className="list-disc list-inside space-y-0.5 text-danger">
                   <li>Exfiltrate environment variables (credentials, tokens) at install time</li>
                   <li>Drop a reverse shell during npm install via postinstall script</li>
                   <li>Replace build artifacts with backdoored versions</li>

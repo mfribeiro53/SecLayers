@@ -17,19 +17,19 @@ export default function ThreadTimelineTool() {
     intervalRef.current = setInterval(() => {
       time++;
       if (time === 1) {
-        setEvents(prev => [...prev, { thread: "A", time, action: "Check: if file exists → YES", color: "bg-blue-100 text-blue-700" }]);
+        setEvents(prev => [...prev, { thread: "A", time, action: "Check: if file exists → YES", color: "bg-info-muted text-info" }]);
       }
       if (time === 2) {
-        setEvents(prev => [...prev, { thread: "B", time, action: "Delete file", color: "bg-amber-100 text-amber-700" }]);
+        setEvents(prev => [...prev, { thread: "B", time, action: "Delete file", color: "bg-warning-muted text-warning" }]);
       }
       if (time === 3) {
-        setEvents(prev => [...prev, { thread: "B", time, action: "Create new file (symlink → /etc/passwd)", color: "bg-red-100 text-red-700" }]);
+        setEvents(prev => [...prev, { thread: "B", time, action: "Create new file (symlink → /etc/passwd)", color: "bg-danger-muted text-danger" }]);
       }
       if (time === 4) {
-        setEvents(prev => [...prev, { thread: "A", time, action: "Open & write to file (follows symlink!)", color: "bg-red-100 text-red-700" }]);
+        setEvents(prev => [...prev, { thread: "A", time, action: "Open & write to file (follows symlink!)", color: "bg-danger-muted text-danger" }]);
       }
       if (time === 5) {
-        setEvents(prev => [...prev, { thread: "A", time, action: "💥 /etc/passwd overwritten!", color: "bg-red-200 text-red-800 font-bold" }]);
+        setEvents(prev => [...prev, { thread: "A", time, action: "💥 /etc/passwd overwritten!", color: "bg-danger-muted text-danger font-bold" }]);
         setResult("TOCTOU exploited: Thread A checked the file exists at t=1, but Thread B replaced it with a symlink before Thread A wrote to it at t=4. The write went to /etc/passwd instead of the intended file.");
         clearInterval(intervalRef.current!);
         setRunning(false);
@@ -64,7 +64,7 @@ export default function ThreadTimelineTool() {
         </div>
 
         {result && (
-          <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+          <div className="p-4 rounded-lg bg-danger-subtle border border-danger-subtle text-sm text-danger">
             <p className="font-medium">⚠️ TOCTOU Exploited</p>
             <p className="text-xs mt-1">{result}</p>
           </div>

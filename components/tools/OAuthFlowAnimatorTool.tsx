@@ -181,7 +181,7 @@ export default function OAuthFlowAnimatorTool() {
             onClick={() => setStep(s.step)}
             className={`p-3 rounded-lg border cursor-pointer transition-opacity ${
               s.step === step
-                ? "border-blue-300 bg-blue-50 opacity-100"
+                ? "border-blue-300 bg-info-subtle opacity-100"
                 : "border-subtle bg-surface-2 opacity-40 hover:opacity-70"
             }`}
           >
@@ -200,7 +200,7 @@ export default function OAuthFlowAnimatorTool() {
         ))}
 
         {step === 6 && (
-          <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
+          <div className="p-3 rounded-lg bg-success-subtle border border-success-subtle text-xs text-success">
             Flow complete. PKCE ensures that even if the authorization code is
             intercepted, the attacker cannot exchange it without the original
             code_verifier — which never leaves the client.

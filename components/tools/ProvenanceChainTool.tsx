@@ -56,10 +56,10 @@ export default function ProvenanceChainTool() {
             <div key={step.id} className="flex items-center flex-1">
               <button
                 onClick={() => setHoveredStep(step.id === hoveredStep ? null : step.id)}
-                className={`flex-1 flex flex-col items-center gap-1.5 px-2 py-3 rounded border text-xs transition-all ${hoveredStep === step.id ? "border-slate-600 bg-slate-800 text-white" : step.signed ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100" : "border-red-300 bg-red-50 text-red-800 hover:bg-red-100"}`}>
+                className={`flex-1 flex flex-col items-center gap-1.5 px-2 py-3 rounded border text-xs transition-all ${hoveredStep === step.id ? "border-slate-600 bg-slate-800 text-white" : step.signed ? "border-emerald-300 bg-success-subtle text-success hover:bg-success-muted" : "border-red-300 bg-danger-subtle text-danger hover:bg-danger-muted"}`}>
                 <span className="text-base">{step.signed ? "🔏" : "⚠️"}</span>
                 <span className="font-medium text-center leading-tight">{step.label}</span>
-                <span className={`text-[10px] font-semibold ${hoveredStep === step.id ? "text-slate-300" : step.signed ? "text-emerald-600" : "text-red-600"}`}>
+                <span className={`text-[10px] font-semibold ${hoveredStep === step.id ? "text-slate-300" : step.signed ? "text-success" : "text-danger"}`}>
                   {step.signed ? "SIGNED" : "UNSIGNED"}
                 </span>
               </button>
@@ -71,12 +71,12 @@ export default function ProvenanceChainTool() {
         </div>
 
         {chain.id === "unsigned" && !hoveredStep && (
-          <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+          <div className="p-2 bg-danger-subtle border border-danger-subtle rounded text-xs text-danger">
             No step in this pipeline has cryptographic verification. An attacker who compromises any stage can substitute malicious artifacts without detection.
           </div>
         )}
         {chain.id === "signed" && !hoveredStep && (
-          <div className="p-2 bg-emerald-50 border border-emerald-200 rounded text-xs text-emerald-700">
+          <div className="p-2 bg-success-subtle border border-success-subtle rounded text-xs text-success">
             Every stage is verified. The full chain from source commit to running pod is cryptographically attested. Tampering at any point breaks the chain and blocks deployment.
           </div>
         )}
@@ -84,11 +84,11 @@ export default function ProvenanceChainTool() {
         {hoveredStep && (() => {
           const step = chain.steps.find(s => s.id === hoveredStep)!;
           return (
-            <div className={`p-3 border rounded text-xs space-y-1.5 ${step.signed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+            <div className={`p-3 border rounded text-xs space-y-1.5 ${step.signed ? "border-success-subtle bg-success-subtle" : "border-danger-subtle bg-danger-subtle"}`}>
               <p className="font-semibold text-secondary">{step.label}</p>
-              <p className={step.signed ? "text-secondary" : "text-red-700"}>{step.description}</p>
+              <p className={step.signed ? "text-secondary" : "text-danger"}>{step.description}</p>
               {step.signed && step.verifiedBy && (
-                <p className="text-emerald-700"><span className="font-medium">Verified by:</span> {step.verifiedBy}</p>
+                <p className="text-success"><span className="font-medium">Verified by:</span> {step.verifiedBy}</p>
               )}
             </div>
           );

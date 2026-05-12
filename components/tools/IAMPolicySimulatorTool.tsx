@@ -82,15 +82,15 @@ export default function IAMPolicySimulatorTool() {
         </div>
 
         <div className="p-3 bg-surface-2 rounded border border-subtle text-xs space-y-1 font-mono">
-          <div><span className="text-slate-500">action:   </span><span className="text-blue-700">{req.action}</span></div>
-          <div><span className="text-slate-500">resource: </span><span className="text-blue-700">{req.resource}</span></div>
+          <div><span className="text-slate-500">action:   </span><span className="text-info">{req.action}</span></div>
+          <div><span className="text-slate-500">resource: </span><span className="text-info">{req.resource}</span></div>
         </div>
 
         <div className="p-3 bg-surface-2 rounded border border-subtle text-xs space-y-1">
           <p className="font-medium text-secondary mb-2">Policy statements ({policy.name}):</p>
           {policy.statements.map((s, i) => (
-            <div key={i} className={`flex gap-2 items-start px-2 py-1 rounded ${s.effect === "Allow" ? "bg-emerald-50 border border-emerald-200" : "bg-red-50 border border-red-200"}`}>
-              <span className={`font-bold text-xs w-10 shrink-0 ${s.effect === "Allow" ? "text-emerald-700" : "text-red-700"}`}>{s.effect}</span>
+            <div key={i} className={`flex gap-2 items-start px-2 py-1 rounded ${s.effect === "Allow" ? "bg-success-subtle border border-success-subtle" : "bg-danger-subtle border border-danger-subtle"}`}>
+              <span className={`font-bold text-xs w-10 shrink-0 ${s.effect === "Allow" ? "text-success" : "text-danger"}`}>{s.effect}</span>
               <span className="text-secondary">{s.actions.join(", ")} on {s.resources.join(", ")}</span>
             </div>
           ))}
@@ -101,7 +101,7 @@ export default function IAMPolicySimulatorTool() {
         </button>
 
         {result && (
-          <div className={`p-4 rounded-lg border text-sm ${result.result === "ALLOW" ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+          <div className={`p-4 rounded-lg border text-sm ${result.result === "ALLOW" ? "bg-success-subtle border-success-subtle text-success" : "bg-danger-subtle border-danger-subtle text-danger"}`}>
             <p className="font-bold text-base">{result.result}</p>
             <p className="text-xs mt-1">{result.reason}</p>
             {result.result === "DENY" && <p className="text-xs mt-2 text-slate-500">Rule: Explicit Deny &gt; Explicit Allow &gt; Implicit Deny (default)</p>}

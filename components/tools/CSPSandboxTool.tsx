@@ -249,7 +249,7 @@ export default function CSPSandboxTool() {
             <div
               key={i}
               className={`p-3 rounded-lg border text-sm ${
-                r.allowed ? "bg-red-50 border-red-200" : "bg-emerald-50 border-emerald-200"
+                r.allowed ? "bg-danger-subtle border-danger-subtle" : "bg-success-subtle border-success-subtle"
               }`}
             >
               <div className="flex justify-between items-start gap-2">
@@ -257,8 +257,8 @@ export default function CSPSandboxTool() {
                 <span
                   className={`text-[10px] px-2 py-0.5 rounded shrink-0 ${
                     r.allowed
-                      ? "bg-red-100 text-red-700"
-                      : "bg-emerald-100 text-emerald-700"
+                      ? "bg-danger-muted text-danger"
+                      : "bg-success-muted text-success"
                   }`}
                 >
                   {r.allowed ? "Allowed" : "Blocked"}

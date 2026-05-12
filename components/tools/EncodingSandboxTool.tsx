@@ -189,10 +189,10 @@ export default function EncodingSandboxTool() {
         {input && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-sm font-medium text-red-600 mb-1">
+              <p className="text-sm font-medium text-danger mb-1">
                 ⚠️ Raw (Dangerous)
               </p>
-              <pre className="p-3 rounded-md text-xs font-mono bg-red-50 text-red-800 border border-red-200 overflow-x-auto whitespace-pre-wrap">
+              <pre className="p-3 rounded-md text-xs font-mono bg-danger-subtle text-danger border border-danger-subtle overflow-x-auto whitespace-pre-wrap">
                 {input}
               </pre>
               <p className="text-xs text-slate-400 mt-1">
@@ -201,10 +201,10 @@ export default function EncodingSandboxTool() {
               </p>
             </div>
             <div>
-              <p className="text-sm font-medium text-emerald-600 mb-1">
+              <p className="text-sm font-medium text-success mb-1">
                 ✅ Encoded (Safe)
               </p>
-              <pre className="p-3 rounded-md text-xs font-mono bg-emerald-50 text-emerald-800 border border-emerald-200 overflow-x-auto whitespace-pre-wrap">
+              <pre className="p-3 rounded-md text-xs font-mono bg-success-subtle text-success border border-success-subtle overflow-x-auto whitespace-pre-wrap">
                 {encoded}
               </pre>
               <p className="text-xs text-slate-400 mt-1">

@@ -54,27 +54,27 @@ const RESULTS: Record<string, { label: string; text: string; color: string }> = 
   secure: {
     label: "✅ Secure",
     text: "Biometric authentication is properly implemented with crypto binding and no weak fallback. The biometric is bound to a key in secure hardware — bypass requires physical access and the user's biometric.",
-    color: "bg-emerald-50 border-emerald-200 text-emerald-800",
+    color: "bg-success-subtle border-success-subtle text-success",
   },
   no_biometric: {
     label: "⚠️ No Biometric",
     text: "The app doesn't use biometric authentication. While not a vulnerability, biometrics provide phishing-resistant authentication that passwords alone cannot. Consider adding biometric support for sensitive operations.",
-    color: "bg-amber-50 border-amber-200 text-amber-800",
+    color: "bg-warning-subtle border-warning-subtle text-warning",
   },
   old_api_vuln: {
     label: "❌ Vulnerable",
     text: "FingerprintManager API (deprecated) does not enforce a secure lock screen — a device with no lock screen but enrolled fingerprints will authenticate any finger. Attackers can also bypass via root access to the fingerprint sensor driver.",
-    color: "bg-red-50 border-red-200 text-red-800",
+    color: "bg-danger-subtle border-danger-subtle text-danger",
   },
   bypassable: {
     label: "❌ Vulnerable",
     text: "Without cryptographic binding, the biometric result is just a boolean flag. An attacker with root access can hook the method and return 'true' — bypassing biometric entirely. Always bind authentication to a Keystore/Enclave key operation.",
-    color: "bg-red-50 border-red-200 text-red-800",
+    color: "bg-danger-subtle border-danger-subtle text-danger",
   },
   brute_pin: {
     label: "❌ Vulnerable",
     text: "Unlimited PIN attempts after biometric failure means an attacker can brute-force the device PIN (typically 4-6 digits) while the owner is unconscious. Limit fallback attempts to 3-5 before requiring biometric again or locking the app.",
-    color: "bg-red-50 border-red-200 text-red-800",
+    color: "bg-danger-subtle border-danger-subtle text-danger",
   },
 };
 
@@ -101,7 +101,7 @@ export default function AuthBypassTreeTool() {
           {path.map((p, i) => (
             <span key={i} className="flex items-center gap-1">
               {i > 0 && <span className="text-slate-300">→</span>}
-              <button onClick={() => { setCurrentNode(p); setPath(path.slice(0, i + 1)); }} className={`px-2 py-0.5 rounded ${p === currentNode ? "bg-blue-100 text-blue-700 font-medium" : "text-slate-400 hover:text-secondary"}`}>
+              <button onClick={() => { setCurrentNode(p); setPath(path.slice(0, i + 1)); }} className={`px-2 py-0.5 rounded ${p === currentNode ? "bg-info-muted text-info font-medium" : "text-slate-400 hover:text-secondary"}`}>
                 {TREE[p]?.id || "start"}
               </button>
             </span>
@@ -110,8 +110,8 @@ export default function AuthBypassTreeTool() {
 
         {/* Current question */}
         {!result && (
-          <div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
-            <p className="text-sm font-medium text-blue-800 mb-3">{node.question}</p>
+          <div className="p-4 rounded-lg border border-info-subtle bg-info-subtle">
+            <p className="text-sm font-medium text-info mb-3">{node.question}</p>
             <div className="flex gap-2">
               {node.yes && (
                 <button onClick={() => answer("yes")} className="px-4 py-2 bg-emerald-600 text-white rounded-md text-sm font-medium hover:bg-emerald-700">Yes</button>

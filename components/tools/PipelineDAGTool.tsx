@@ -66,9 +66,9 @@ const STAGES: Stage[] = [
 ];
 
 const SEV_COLOR: Record<string, string> = {
-  critical: "border-l-red-500 bg-red-50 text-red-800",
-  high: "border-l-orange-500 bg-orange-50 text-orange-800",
-  medium: "border-l-amber-500 bg-amber-50 text-amber-800",
+  critical: "border-l-red-500 bg-danger-subtle text-danger",
+  high: "border-l-orange-500 bg-orange-subtle text-orange",
+  medium: "border-l-amber-500 bg-warning-subtle text-warning",
 };
 
 export default function PipelineDAGTool() {

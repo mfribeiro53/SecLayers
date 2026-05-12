@@ -163,10 +163,10 @@ export default function ApiDiffTool() {
                   {diff.removed.map((k) => (
                     <div
                       key={k}
-                      className="flex items-center gap-2 px-2 py-1 bg-red-50 border border-red-200 rounded text-xs"
+                      className="flex items-center gap-2 px-2 py-1 bg-danger-subtle border border-danger-subtle rounded text-xs"
                     >
                       <span className="text-red-500 font-bold">−</span>
-                      <span className="font-mono text-red-700 font-semibold">{k}</span>
+                      <span className="font-mono text-danger font-semibold">{k}</span>
                     </div>
                   ))}
                 </div>
@@ -186,10 +186,10 @@ export default function ApiDiffTool() {
                   {diff.added.map((k) => (
                     <div
                       key={k}
-                      className="flex items-center gap-2 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded text-xs"
+                      className="flex items-center gap-2 px-2 py-1 bg-success-subtle border border-success-subtle rounded text-xs"
                     >
                       <span className="text-emerald-500 font-bold">+</span>
-                      <span className="font-mono text-emerald-700 font-semibold">{k}</span>
+                      <span className="font-mono text-success font-semibold">{k}</span>
                     </div>
                   ))}
                 </div>
@@ -206,13 +206,13 @@ export default function ApiDiffTool() {
                   {diff.changed.map(({ key, from, to }) => (
                     <div
                       key={key}
-                      className="px-2 py-1 bg-amber-50 border border-amber-200 rounded text-xs"
+                      className="px-2 py-1 bg-warning-subtle border border-warning-subtle rounded text-xs"
                     >
-                      <span className="font-mono text-amber-700 font-semibold">{key}</span>
+                      <span className="font-mono text-warning font-semibold">{key}</span>
                       <span className="text-slate-500 ml-2">
-                        <span className="text-red-600 line-through">{fmt(from)}</span>
+                        <span className="text-danger line-through">{fmt(from)}</span>
                         <span className="mx-1">→</span>
-                        <span className="text-emerald-600">{fmt(to)}</span>
+                        <span className="text-success">{fmt(to)}</span>
                       </span>
                     </div>
                   ))}

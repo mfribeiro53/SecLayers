@@ -97,7 +97,7 @@ export default function LogInjectorTool() {
         </div>
 
         {attacked && (
-          <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+          <div className="p-2 bg-danger-subtle border border-danger-subtle rounded text-xs text-danger">
             Log injection detected! Fake entries were injected into the log stream. An attacker can forge audit trails, hide actions, or confuse SIEM correlation rules.
             {mode === "structured" && " Structured logging would have escaped the newlines, preventing this."}
           </div>

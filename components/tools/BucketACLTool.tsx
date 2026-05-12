@@ -37,10 +37,10 @@ function getFindings(c: Config): { severity: "critical" | "high" | "medium" | "i
 }
 
 const severityColor: Record<string, string> = {
-  critical: "bg-red-100 border-red-300 text-red-800",
-  high:     "bg-orange-100 border-orange-300 text-orange-800",
-  medium:   "bg-amber-100 border-amber-300 text-amber-800",
-  info:     "bg-emerald-100 border-emerald-300 text-emerald-800",
+  critical: "bg-danger-muted border-red-300 text-danger",
+  high:     "bg-orange-subtle border-orange-300 text-orange",
+  medium:   "bg-warning-muted border-amber-300 text-warning",
+  info:     "bg-success-muted border-emerald-300 text-success",
 };
 
 export default function BucketACLTool() {
@@ -63,7 +63,7 @@ export default function BucketACLTool() {
   return (
     <ToolShell title="S3 Bucket ACL Checker" description="Toggle bucket configuration flags and see the security impact.">
       <div className="space-y-4">
-        <div className={`text-center py-2 rounded text-sm font-bold ${isPublic ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+        <div className={`text-center py-2 rounded text-sm font-bold ${isPublic ? "bg-danger-muted text-danger" : "bg-success-muted text-success"}`}>
           {isPublic ? "PUBLIC — Data exposed to the internet" : "PRIVATE — Not publicly accessible"}
         </div>
 

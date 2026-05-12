@@ -35,9 +35,9 @@ export default function MitigationToggleTool() {
   const score = Math.round((enabledWeight / totalWeight) * 100);
 
   const getScoreColor = () => {
-    if (score >= 80) return "text-emerald-600";
-    if (score >= 50) return "text-amber-600";
-    return "text-red-600";
+    if (score >= 80) return "text-success";
+    if (score >= 50) return "text-warning";
+    return "text-danger";
   };
 
   const getBarColor = () => {
@@ -69,7 +69,7 @@ export default function MitigationToggleTool() {
 
         <div className="space-y-2">
           {MITIGATIONS.map((m) => (
-            <div key={m.id} className={`p-3 rounded-lg border transition-colors ${enabled.has(m.id) ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+            <div key={m.id} className={`p-3 rounded-lg border transition-colors ${enabled.has(m.id) ? "bg-success-subtle border-success-subtle" : "bg-danger-subtle border-danger-subtle"}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button onClick={() => toggle(m.id)} className={`w-10 h-5 rounded-full relative transition-colors ${enabled.has(m.id) ? "bg-emerald-500" : "bg-strong"}`}>
@@ -78,7 +78,7 @@ export default function MitigationToggleTool() {
                   <span className="text-sm font-semibold text-secondary">{m.label}</span>
                   <span className="text-xs text-slate-400">({m.weight} pts)</span>
                 </div>
-                <span className={`text-xs font-medium ${enabled.has(m.id) ? "text-emerald-600" : "text-red-600"}`}>
+                <span className={`text-xs font-medium ${enabled.has(m.id) ? "text-success" : "text-danger"}`}>
                   {enabled.has(m.id) ? "ENABLED" : "DISABLED"}
                 </span>
               </div>

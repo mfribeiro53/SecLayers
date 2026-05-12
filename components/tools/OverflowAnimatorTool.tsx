@@ -54,15 +54,15 @@ export default function OverflowAnimatorTool() {
             <div
               key={cell.addr}
               className={`px-3 py-1.5 flex items-center gap-3 border-b border-subtle ${
-                cell.overflow ? "bg-red-100 animate-pulse" :
-                cell.type === "ret" ? "bg-red-50" :
-                cell.type === "ebp" ? "bg-amber-50" :
+                cell.overflow ? "bg-danger-muted animate-pulse" :
+                cell.type === "ret" ? "bg-danger-subtle" :
+                cell.type === "ebp" ? "bg-warning-subtle" :
                 "bg-surface-2"
               }`}
             >
               <span className="text-slate-400 w-12">{cell.addr}</span>
               <span className="text-slate-500 w-32">{cell.label}</span>
-              <span className={`font-bold ${cell.overflow ? "text-red-600" : cell.type === "ret" ? "text-red-400" : cell.type === "ebp" ? "text-amber-600" : "text-secondary"}`}>
+              <span className={`font-bold ${cell.overflow ? "text-danger" : cell.type === "ret" ? "text-red-400" : cell.type === "ebp" ? "text-warning" : "text-secondary"}`}>
                 {cell.overflow ? `0x${cell.value.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")} ('${cell.value}')` : cell.value}
               </span>
               {cell.overflow && <span className="text-red-500 text-[10px]">CORRUPTED</span>}
@@ -71,7 +71,7 @@ export default function OverflowAnimatorTool() {
         </div>
 
         {hasOverflow && (
-          <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+          <div className="p-4 rounded-lg bg-danger-subtle border border-danger-subtle text-sm text-danger">
             <p className="font-medium">⚠️ Buffer Overflow in Progress</p>
             <p className="text-xs mt-1">
               {overflowChars.length < 2

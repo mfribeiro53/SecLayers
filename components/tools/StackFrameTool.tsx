@@ -61,23 +61,23 @@ export default function StackFrameTool() {
                 <span>{frame.name}</span>
                 <span className="text-slate-400 font-normal">frame {frame.id}</span>
               </div>
-              <div className={`px-3 py-1.5 bg-red-50 border-b border-red-100 ${overflow ? "animate-pulse" : ""}`}>
-                <span className="text-red-700">Return Address:</span>{" "}
-                <span className={overflow ? "text-red-600 line-through" : "text-secondary"}>
+              <div className={`px-3 py-1.5 bg-danger-subtle border-b border-danger-subtle ${overflow ? "animate-pulse" : ""}`}>
+                <span className="text-danger">Return Address:</span>{" "}
+                <span className={overflow ? "text-danger line-through" : "text-secondary"}>
                   {overflow && frame.id === frames.length ? "0x41414141 (AAAA)" : frame.returnAddr}
                 </span>
                 {overflow && frame.id === frames.length && (
                   <span className="ml-2 text-red-500 font-bold">⚠ OVERWRITTEN</span>
                 )}
               </div>
-              <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-100">
-                <span className="text-amber-700">Saved EBP:</span>{" "}
+              <div className="px-3 py-1.5 bg-warning-subtle border-b border-warning-subtle">
+                <span className="text-warning">Saved EBP:</span>{" "}
                 <span className="text-secondary">{frame.savedEbp}</span>
               </div>
               {frame.locals.map((local, i) => (
                 <div key={i} className="px-3 py-1.5 bg-surface-2 border-b border-subtle">
                   <span className="text-slate-400">local:</span>{" "}
-                  <span className={overflow && frame.id === frames.length && local.includes("buf") ? "text-red-600" : "text-secondary"}>
+                  <span className={overflow && frame.id === frames.length && local.includes("buf") ? "text-danger" : "text-secondary"}>
                     {local}
                   </span>
                   {overflow && frame.id === frames.length && local.includes("buf") && (
@@ -90,7 +90,7 @@ export default function StackFrameTool() {
         </div>
 
         {overflow && (
-          <div className="p-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-800">
+          <div className="p-4 rounded-lg bg-danger-subtle border border-danger-subtle text-sm text-danger">
             <p className="font-medium">Buffer Overflow Exploited</p>
             <p className="text-xs mt-1">
               The local buffer <code>buf[16]</code> was filled past its 16-byte boundary.

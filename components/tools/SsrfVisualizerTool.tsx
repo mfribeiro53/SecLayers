@@ -69,7 +69,7 @@ export default function SsrfVisualizerTool() {
           ))}
         </div>
         {result && (
-          <div className={`p-4 rounded-lg border text-sm ${result.startsWith("✅") ? "bg-emerald-50 border-emerald-200 text-emerald-800" : "bg-red-50 border-red-200 text-red-800"}`}>
+          <div className={`p-4 rounded-lg border text-sm ${result.startsWith("✅") ? "bg-success-subtle border-success-subtle text-success" : "bg-danger-subtle border-danger-subtle text-danger"}`}>
             {result}
           </div>
         )}

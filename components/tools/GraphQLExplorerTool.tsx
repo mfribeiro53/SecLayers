@@ -145,10 +145,10 @@ const DEFAULT_DEPTH_QUERY = `{
 }`;
 
 const sev: Record<string, string> = {
-  critical: "border-l-red-500 bg-red-50 text-red-800",
-  high:     "border-l-orange-500 bg-orange-50 text-orange-800",
-  medium:   "border-l-amber-500 bg-amber-50 text-amber-800",
-  info:     "border-l-blue-500 bg-blue-50 text-blue-800",
+  critical: "border-l-red-500 bg-danger-subtle text-danger",
+  high:     "border-l-orange-500 bg-orange-subtle text-orange",
+  medium:   "border-l-amber-500 bg-warning-subtle text-warning",
+  info:     "border-l-blue-500 bg-info-subtle text-info",
 };
 
 export default function GraphQLExplorerTool() {
@@ -268,10 +268,10 @@ export default function GraphQLExplorerTool() {
               <div
                 className={`px-3 py-2 rounded border text-sm font-semibold ${
                   depth > 7
-                    ? "bg-red-50 border-red-300 text-red-700"
+                    ? "bg-danger-subtle border-red-300 text-danger"
                     : depth > 4
-                    ? "bg-amber-50 border-amber-300 text-amber-700"
-                    : "bg-emerald-50 border-emerald-300 text-emerald-700"
+                    ? "bg-warning-subtle border-amber-300 text-warning"
+                    : "bg-success-subtle border-emerald-300 text-success"
                 }`}
               >
                 Depth: {depth}
@@ -315,8 +315,8 @@ export default function GraphQLExplorerTool() {
             <div
               className={`px-3 py-2 rounded border text-xs font-semibold w-fit ${
                 aliasCount > 20
-                  ? "bg-red-50 border-red-300 text-red-700"
-                  : "bg-amber-50 border-amber-300 text-amber-700"
+                  ? "bg-danger-subtle border-red-300 text-danger"
+                  : "bg-warning-subtle border-amber-300 text-warning"
               }`}
             >
               {aliasCount} operation alias{aliasCount !== 1 ? "es" : ""} in one HTTP request

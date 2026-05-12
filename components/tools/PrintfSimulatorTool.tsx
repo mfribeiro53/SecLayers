@@ -218,9 +218,9 @@ const CHUNK_STYLE: Record<string, string> = {
 };
 
 const WARN_STYLE: Record<string, string> = {
-  critical: "border-l-red-500 bg-red-50 text-red-800",
-  high:     "border-l-orange-500 bg-orange-50 text-orange-800",
-  info:     "border-l-blue-500 bg-blue-50 text-blue-800",
+  critical: "border-l-red-500 bg-danger-subtle text-danger",
+  high:     "border-l-orange-500 bg-orange-subtle text-orange",
+  info:     "border-l-blue-500 bg-info-subtle text-info",
 };
 
 export default function PrintfSimulatorTool() {

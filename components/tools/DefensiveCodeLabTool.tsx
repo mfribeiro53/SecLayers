@@ -136,17 +136,17 @@ export default function DefensiveCodeLabTool() {
         <div className="p-4 rounded-lg border border-subtle bg-surface-2">
           <div className="flex justify-between items-center mb-2">
             <p className="text-sm font-semibold text-secondary">{snippet.title}</p>
-            <span className="px-2 py-0.5 text-xs rounded bg-red-100 text-red-700 font-medium">{snippet.vulnerability}</span>
+            <span className="px-2 py-0.5 text-xs rounded bg-danger-muted text-danger font-medium">{snippet.vulnerability}</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-medium text-red-600 mb-1">Vulnerable</p>
-              <pre className="p-3 rounded-md text-xs font-mono bg-red-50 text-red-800 border border-red-200 overflow-x-auto whitespace-pre-wrap">{snippet.vulnerableCode}</pre>
+              <p className="text-xs font-medium text-danger mb-1">Vulnerable</p>
+              <pre className="p-3 rounded-md text-xs font-mono bg-danger-subtle text-danger border border-danger-subtle overflow-x-auto whitespace-pre-wrap">{snippet.vulnerableCode}</pre>
             </div>
             <div>
-              <p className="text-xs font-medium text-emerald-600 mb-1">Safe Pattern</p>
-              <pre className="p-3 rounded-md text-xs font-mono bg-emerald-50 text-emerald-800 border border-emerald-200 overflow-x-auto whitespace-pre-wrap">{snippet.safeCode}</pre>
+              <p className="text-xs font-medium text-success mb-1">Safe Pattern</p>
+              <pre className="p-3 rounded-md text-xs font-mono bg-success-subtle text-success border border-success-subtle overflow-x-auto whitespace-pre-wrap">{snippet.safeCode}</pre>
             </div>
           </div>
 

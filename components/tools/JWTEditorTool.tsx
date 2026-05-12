@@ -236,7 +236,7 @@ export default function JWTEditorTool() {
         </div>
 
         {!parsed && (
-          <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+          <div className="p-3 rounded-md bg-warning-subtle border border-warning-subtle text-warning text-sm">
             {message || "Paste a JWT token to decode."}
           </div>
         )}
@@ -247,24 +247,24 @@ export default function JWTEditorTool() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="p-3 rounded-lg border border-subtle bg-surface-2">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs font-semibold text-red-600">HEADER</p>
-                  <button onClick={() => enterEditMode("edit-header")} className="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                  <p className="text-xs font-semibold text-danger">HEADER</p>
+                  <button onClick={() => enterEditMode("edit-header")} className="text-xs text-info hover:text-info">Edit</button>
                 </div>
                 <pre className="text-xs font-mono text-secondary whitespace-pre-wrap break-all">
                   {base64UrlDecode(parsed.raw.header)}
                 </pre>
               </div>
-              <div className="p-3 rounded-lg border border-subtle bg-purple-50">
+              <div className="p-3 rounded-lg border border-subtle bg-purple-subtle">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs font-semibold text-purple-600">PAYLOAD</p>
-                  <button onClick={() => enterEditMode("edit-payload")} className="text-xs text-blue-500 hover:text-blue-700">Edit</button>
+                  <p className="text-xs font-semibold text-purple">PAYLOAD</p>
+                  <button onClick={() => enterEditMode("edit-payload")} className="text-xs text-info hover:text-info">Edit</button>
                 </div>
                 <pre className="text-xs font-mono text-secondary whitespace-pre-wrap break-all">
                   {base64UrlDecode(parsed.raw.payload)}
                 </pre>
               </div>
-              <div className="p-3 rounded-lg border border-subtle bg-blue-50">
-                <p className="text-xs font-semibold text-blue-600 mb-1">SIGNATURE</p>
+              <div className="p-3 rounded-lg border border-subtle bg-info-subtle">
+                <p className="text-xs font-semibold text-info mb-1">SIGNATURE</p>
                 <pre className="text-xs font-mono text-slate-500 whitespace-pre-wrap break-all">
                   {parsed.signature ? parsed.signature.substring(0, 32) + "..." : "(empty — alg:none)"}
                 </pre>
@@ -276,8 +276,8 @@ export default function JWTEditorTool() {
 
             {/* Edit inline */}
             {editMode !== "view" && (
-              <div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
-                <p className="text-sm font-medium text-blue-800 mb-2">
+              <div className="p-4 rounded-lg border border-info-subtle bg-info-subtle">
+                <p className="text-sm font-medium text-info mb-2">
                   Editing {editMode === "edit-payload" ? "Payload" : "Header"}
                 </p>
                 <textarea
@@ -340,7 +340,7 @@ export default function JWTEditorTool() {
                 </div>
               </div>
               {verifyResult && (
-                <div className={`p-3 rounded-md text-xs ${verifyResult.valid ? "bg-emerald-50 border border-emerald-200 text-emerald-800" : "bg-red-50 border border-red-200 text-red-800"}`}>
+                <div className={`p-3 rounded-md text-xs ${verifyResult.valid ? "bg-success-subtle border border-success-subtle text-success" : "bg-danger-subtle border border-danger-subtle text-danger"}`}>
                   {verifyResult.msg}
                 </div>
               )}
@@ -353,7 +353,7 @@ export default function JWTEditorTool() {
         )}
 
         {message && (
-          <div className="p-3 rounded-md bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+          <div className="p-3 rounded-md bg-warning-subtle border border-warning-subtle text-warning text-xs">
             {message}
           </div>
         )}
@@ -361,17 +361,17 @@ export default function JWTEditorTool() {
         {/* Session Fixation */}
         <div className="mt-6 pt-6 border-t border-subtle">
           <p className="text-sm font-medium text-secondary mb-2">Session Fixation Attack</p>
-          <div className="p-4 rounded-lg border border-red-200 bg-red-50">
+          <div className="p-4 rounded-lg border border-danger-subtle bg-danger-subtle">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-sm font-semibold text-red-800">
+              <p className="text-sm font-semibold text-danger">
                 Step {fixationStep + 1} of {SESSION_FIXATION_STEPS.slice(0, 5).length}
               </p>
               <div className="flex gap-1">
-                <button onClick={() => setFixationStep(Math.max(0, fixationStep - 1))} className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200">←</button>
-                <button onClick={() => setFixationStep(Math.min(SESSION_FIXATION_STEPS.length - 1, fixationStep + 1))} className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200">→</button>
+                <button onClick={() => setFixationStep(Math.max(0, fixationStep - 1))} className="px-2 py-1 text-xs rounded bg-danger-muted text-danger hover:bg-danger-muted">←</button>
+                <button onClick={() => setFixationStep(Math.min(SESSION_FIXATION_STEPS.length - 1, fixationStep + 1))} className="px-2 py-1 text-xs rounded bg-danger-muted text-danger hover:bg-danger-muted">→</button>
               </div>
             </div>
-            <p className="text-sm text-red-700 whitespace-pre-line">{SESSION_FIXATION_STEPS[fixationStep]}</p>
+            <p className="text-sm text-danger whitespace-pre-line">{SESSION_FIXATION_STEPS[fixationStep]}</p>
           </div>
         </div>
       </div>

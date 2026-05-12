@@ -21,12 +21,12 @@ const STRIDE_LABELS: Record<string, string> = {
 };
 
 const STRIDE_COLORS: Record<string, string> = {
-  S: "bg-red-100 text-red-800 border-red-200",
-  T: "bg-orange-100 text-orange-800 border-orange-200",
-  R: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  I: "bg-blue-100 text-blue-800 border-blue-200",
-  D: "bg-purple-100 text-purple-800 border-purple-200",
-  E: "bg-pink-100 text-pink-800 border-pink-200",
+  S: "bg-danger-muted text-danger border-danger-subtle",
+  T: "bg-orange-subtle text-orange border-orange-subtle",
+  R: "bg-yellow-subtle text-yellow border-yellow-subtle",
+  I: "bg-info-muted text-info border-info-subtle",
+  D: "bg-purple-subtle text-purple border-purple-subtle",
+  E: "bg-pink-subtle text-pink border-pink-subtle",
 };
 
 function generateThreats(element: DfdElement): { letter: string; label: string; description: string }[] {

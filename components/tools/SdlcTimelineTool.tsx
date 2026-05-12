@@ -31,11 +31,11 @@ const ACTIVITIES: Activity[] = [
 
 const PHASES = [
   { id: "requirements", label: "1. Requirements", color: "bg-elevated border-subtle" },
-  { id: "design", label: "2. Design", color: "bg-blue-50 border-blue-200" },
-  { id: "development", label: "3. Development", color: "bg-violet-50 border-violet-200" },
-  { id: "testing", label: "4. Testing", color: "bg-amber-50 border-amber-200" },
-  { id: "deployment", label: "5. Deployment", color: "bg-emerald-50 border-emerald-200" },
-  { id: "operations", label: "6. Operations", color: "bg-rose-50 border-rose-200" },
+  { id: "design", label: "2. Design", color: "bg-info-subtle border-info-subtle" },
+  { id: "development", label: "3. Development", color: "bg-violet-subtle border-violet-subtle" },
+  { id: "testing", label: "4. Testing", color: "bg-warning-subtle border-warning-subtle" },
+  { id: "deployment", label: "5. Deployment", color: "bg-success-subtle border-success-subtle" },
+  { id: "operations", label: "6. Operations", color: "bg-rose-subtle border-rose-subtle" },
 ];
 
 export default function SdlcTimelineTool() {
@@ -99,7 +99,7 @@ export default function SdlcTimelineTool() {
               onDrop={() => handleDrop(phase.id)}
               onDragOver={handleDragOver}
               className={`border-2 border-dashed rounded-lg p-4 min-h-[60px] transition-colors ${
-                draggedActivity ? "border-blue-400 bg-blue-50/30" : phase.color
+                draggedActivity ? "border-blue-400 bg-info-subtle/30" : phase.color
               }`}
             >
               <div className="flex items-baseline justify-between mb-2">
@@ -157,7 +157,7 @@ export default function SdlcTimelineTool() {
 
         {/* Correct answers reveal */}
         {totalPlaced === totalActivities && (
-          <div className="p-4 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
+          <div className="p-4 rounded-lg bg-success-subtle border border-success-subtle text-sm text-success">
             <p className="font-medium mb-1">
               🎉 All activities placed! Here's the correct mapping:
             </p>

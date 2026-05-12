@@ -131,10 +131,10 @@ function example() {
 }`;
 
 const toolColors: Record<string, string> = {
-  SAST:   "bg-blue-100 text-blue-700",
-  SCA:    "bg-purple-100 text-purple-700",
-  Secret: "bg-red-100 text-red-700",
-  DAST:   "bg-amber-100 text-amber-700",
+  SAST:   "bg-info-muted text-info",
+  SCA:    "bg-purple-subtle text-purple",
+  Secret: "bg-danger-muted text-danger",
+  DAST:   "bg-warning-muted text-warning",
 };
 
 function scanCode(code: string, regexStr: string, reason: string): RuleMatch[] | string {
@@ -341,10 +341,10 @@ export default function SASTRuleBuilderTool() {
               matches.map((m, i) => (
                 <div
                   key={i}
-                  className="border-l-4 border-l-red-500 pl-3 py-1.5 bg-red-50 rounded-r text-xs"
+                  className="border-l-4 border-l-red-500 pl-3 py-1.5 bg-danger-subtle rounded-r text-xs"
                 >
                   <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-bold text-red-700 uppercase text-[10px]">
+                    <span className="font-bold text-danger uppercase text-[10px]">
                       Finding
                     </span>
                     <span className="text-slate-500">line {m.line}</span>
@@ -352,7 +352,7 @@ export default function SASTRuleBuilderTool() {
                   <p className="font-mono text-[10px] text-secondary mb-1 truncate">
                     {m.snippet}
                   </p>
-                  <p className="text-red-700">{m.reason}</p>
+                  <p className="text-danger">{m.reason}</p>
                 </div>
               ))
             )}

@@ -47,13 +47,13 @@ export default function TLSVisualizerTool() {
           <div className="text-slate-400 font-medium">Server</div>
           {HANDSHAKE_STEPS.map((s) => (
             <div key={s.step} className="contents">
-              <div className={`p-2 rounded-lg border text-right ${s.step === step ? "border-blue-300 bg-blue-50" : "border-transparent bg-transparent"}`}>
+              <div className={`p-2 rounded-lg border text-right ${s.step === step ? "border-blue-300 bg-info-subtle" : "border-transparent bg-transparent"}`}>
                 {s.client && <span className={s.step === step ? "text-secondary" : "text-slate-400"}>{s.client}</span>}
               </div>
               <div className="flex items-center justify-center">
                 {s.client && s.server ? "⇄" : s.client ? "→" : "←"}
               </div>
-              <div className={`p-2 rounded-lg border ${s.step === step ? "border-blue-300 bg-blue-50" : "border-transparent bg-transparent"}`}>
+              <div className={`p-2 rounded-lg border ${s.step === step ? "border-blue-300 bg-info-subtle" : "border-transparent bg-transparent"}`}>
                 {s.server && <span className={s.step === step ? "text-secondary" : "text-slate-400"}>{s.server}</span>}
               </div>
             </div>
@@ -61,14 +61,14 @@ export default function TLSVisualizerTool() {
         </div>
 
         {/* Current step detail */}
-        <div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
-          <p className="text-sm font-semibold text-blue-800">Step {step}: {current.title}</p>
-          <p className="text-xs text-blue-700 mt-1">{current.client || current.server}</p>
+        <div className="p-4 rounded-lg border border-info-subtle bg-info-subtle">
+          <p className="text-sm font-semibold text-info">Step {step}: {current.title}</p>
+          <p className="text-xs text-info mt-1">{current.client || current.server}</p>
         </div>
 
         {/* Pinning / MITM result */}
         {step >= 4 && mitmActive && (
-          <div className={`p-4 rounded-lg border ${pinningEnabled ? "bg-emerald-50 border-emerald-200" : "bg-red-50 border-red-200"}`}>
+          <div className={`p-4 rounded-lg border ${pinningEnabled ? "bg-success-subtle border-success-subtle" : "bg-danger-subtle border-danger-subtle"}`}>
             <p className="text-sm font-semibold">{pinningEnabled ? "✅ Connection secure" : "❌ MITM attack successful"}</p>
             <p className="text-xs mt-1">
               {pinningEnabled

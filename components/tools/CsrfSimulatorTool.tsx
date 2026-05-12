@@ -139,34 +139,34 @@ export default function CsrfSimulatorTool() {
         {/* Victim & Attacker */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Victim's browser */}
-          <div className="p-4 rounded-lg border border-blue-200 bg-blue-50">
-            <p className="text-sm font-semibold text-blue-800 mb-2">
+          <div className="p-4 rounded-lg border border-info-subtle bg-info-subtle">
+            <p className="text-sm font-semibold text-info mb-2">
               Alice's Browser
             </p>
-            <p className="text-xs text-blue-700">
+            <p className="text-xs text-info">
               Logged into bank.com
             </p>
-            <p className="text-xs text-blue-600 mt-1 font-mono">
+            <p className="text-xs text-info mt-1 font-mono">
               Cookie: session=abc123; SameSite={sameSite}
             </p>
-            <div className="mt-3 pt-3 border-t border-blue-100 text-xs text-blue-600">
+            <div className="mt-3 pt-3 border-t border-info-subtle text-xs text-info">
               <p>Visiting: evil.com</p>
-              <p className="font-mono mt-1 text-blue-500">
+              <p className="font-mono mt-1 text-info">
                 &lt;form action=&quot;https://bank.com{scenario.endpoint}&quot; method=&quot;{scenario.method}&quot;&gt;
               </p>
-              <p className="font-mono text-blue-500">
+              <p className="font-mono text-info">
                 &lt;input name=&quot;...&quot; value=&quot;...&quot; /&gt;
               </p>
-              <p className="font-mono text-blue-500">&lt;/form&gt;</p>
+              <p className="font-mono text-info">&lt;/form&gt;</p>
             </div>
           </div>
 
           {/* Attacker's site */}
-          <div className="p-4 rounded-lg border border-red-200 bg-red-50">
-            <p className="text-sm font-semibold text-red-800 mb-2">
+          <div className="p-4 rounded-lg border border-danger-subtle bg-danger-subtle">
+            <p className="text-sm font-semibold text-danger mb-2">
               Attacker's Site (evil.com)
             </p>
-            <div className="text-xs text-red-700 space-y-1">
+            <div className="text-xs text-danger space-y-1">
               <p>Hidden form auto-submits to bank.com</p>
               <p className="mt-1">
                 {hasToken
@@ -231,7 +231,7 @@ export default function CsrfSimulatorTool() {
                   setHasToken(e.target.checked);
                   setRequestResult(null);
                 }}
-                className="rounded border-subtle text-blue-600 focus:ring-blue-500"
+                className="rounded border-subtle text-info focus:ring-blue-500"
               />
               <span className="text-sm text-secondary">
                 Anti-CSRF Token (server validates token in form)
@@ -247,7 +247,7 @@ export default function CsrfSimulatorTool() {
                   setHasOriginCheck(e.target.checked);
                   setRequestResult(null);
                 }}
-                className="rounded border-subtle text-blue-600 focus:ring-blue-500"
+                className="rounded border-subtle text-info focus:ring-blue-500"
               />
               <span className="text-sm text-secondary">
                 Origin / Referer Validation (server checks request origin)
@@ -268,8 +268,8 @@ export default function CsrfSimulatorTool() {
           <div
             className={`p-4 rounded-lg border text-sm ${
               requestResult.includes("succeeded")
-                ? "bg-red-50 border-red-200 text-red-800"
-                : "bg-emerald-50 border-emerald-200 text-emerald-800"
+                ? "bg-danger-subtle border-danger-subtle text-danger"
+                : "bg-success-subtle border-success-subtle text-success"
             }`}
           >
             <p className="font-medium mb-1">

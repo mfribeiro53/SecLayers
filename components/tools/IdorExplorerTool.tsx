@@ -114,7 +114,7 @@ export default function IdorExplorerTool() {
                   setResult(null);
                 }}
                 className={`text-left px-2 py-1 rounded hover:bg-strong transition-colors ${
-                  String(r.id) === recordId ? "bg-blue-100 text-blue-800" : "text-secondary"
+                  String(r.id) === recordId ? "bg-info-muted text-info" : "text-secondary"
                 }`}
               >
                 <span className="font-mono">{r.id}</span>{" "}
@@ -157,7 +157,7 @@ export default function IdorExplorerTool() {
               setHasAuthCheck(e.target.checked);
               setResult(null);
             }}
-            className="rounded border-subtle text-blue-600 focus:ring-blue-500"
+            className="rounded border-subtle text-info focus:ring-blue-500"
           />
           <span className="text-sm text-secondary">
             Enable Ownership Check (server verifies record belongs to your role)
@@ -169,9 +169,9 @@ export default function IdorExplorerTool() {
           <div
             className={`p-4 rounded-lg border ${
               result.message.includes("⚠️")
-                ? "bg-red-50 border-red-200"
+                ? "bg-danger-subtle border-danger-subtle"
                 : result.record
-                ? "bg-emerald-50 border-emerald-200"
+                ? "bg-success-subtle border-success-subtle"
                 : "bg-surface-2 border-subtle"
             }`}
           >
@@ -194,9 +194,9 @@ export default function IdorExplorerTool() {
             <p
               className={`text-xs mt-2 pt-2 border-t ${
                 result.message.includes("⚠️")
-                  ? "border-red-100 text-red-600"
+                  ? "border-danger-subtle text-danger"
                   : result.record
-                  ? "border-emerald-100 text-emerald-600"
+                  ? "border-success-subtle text-success"
                   : "border-subtle text-slate-500"
               }`}
             >

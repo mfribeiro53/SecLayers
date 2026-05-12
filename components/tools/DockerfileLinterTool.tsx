@@ -70,13 +70,13 @@ function lint(content: string): Finding[] {
 }
 
 const severityColor: Record<string, string> = {
-  critical: "border-l-red-500 bg-red-50",
-  high:     "border-l-orange-500 bg-orange-50",
-  medium:   "border-l-amber-500 bg-amber-50",
-  info:     "border-l-blue-500 bg-blue-50",
+  critical: "border-l-red-500 bg-danger-subtle",
+  high:     "border-l-orange-500 bg-orange-subtle",
+  medium:   "border-l-amber-500 bg-warning-subtle",
+  info:     "border-l-blue-500 bg-info-subtle",
 };
 const severityText: Record<string, string> = {
-  critical: "text-red-700", high: "text-orange-700", medium: "text-amber-700", info: "text-blue-700",
+  critical: "text-danger", high: "text-orange", medium: "text-warning", info: "text-info",
 };
 
 export default function DockerfileLinterTool() {
@@ -87,8 +87,8 @@ export default function DockerfileLinterTool() {
     <ToolShell title="Dockerfile Security Linter" description="Paste a Dockerfile to scan for security issues.">
       <div className="space-y-3">
         <div className="flex gap-2">
-          <button onClick={() => setSource(EXAMPLES.insecure)} className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200">Load insecure example</button>
-          <button onClick={() => setSource(EXAMPLES.better)} className="px-3 py-1 text-xs bg-emerald-100 text-emerald-700 rounded hover:bg-emerald-200">Load better example</button>
+          <button onClick={() => setSource(EXAMPLES.insecure)} className="px-3 py-1 text-xs bg-danger-muted text-danger rounded hover:bg-danger-muted">Load insecure example</button>
+          <button onClick={() => setSource(EXAMPLES.better)} className="px-3 py-1 text-xs bg-success-muted text-success rounded hover:bg-success-muted">Load better example</button>
         </div>
 
         <textarea
@@ -100,7 +100,7 @@ export default function DockerfileLinterTool() {
 
         <div className="space-y-2">
           <p className="text-xs font-medium text-secondary">{findings.length} finding{findings.length !== 1 ? "s" : ""}</p>
-          {findings.length === 0 && <p className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded">No issues found.</p>}
+          {findings.length === 0 && <p className="text-xs text-success bg-success-subtle p-2 rounded">No issues found.</p>}
           {findings.map((f, i) => (
             <div key={i} className={`border-l-4 pl-3 py-1.5 rounded-r text-xs ${severityColor[f.severity]}`}>
               <div className="flex gap-2 items-center">

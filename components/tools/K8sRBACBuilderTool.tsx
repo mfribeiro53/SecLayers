@@ -86,7 +86,7 @@ export default function K8sRBACBuilderTool() {
         </div>
 
         {warning && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+          <div className="p-3 bg-danger-subtle border border-danger-subtle rounded text-xs text-danger">
             <p className="font-medium">Escalation Risk</p>
             <p className="mt-0.5">{warning}</p>
           </div>
@@ -97,9 +97,9 @@ export default function K8sRBACBuilderTool() {
           {CHECKS.map((c, i) => {
             const allowed = canDo(role.name, c.verb, c.resource);
             return (
-              <div key={i} className={`flex items-center justify-between px-3 py-1.5 rounded text-xs border ${allowed ? "bg-emerald-50 border-emerald-200" : "bg-surface-2 border-subtle"}`}>
+              <div key={i} className={`flex items-center justify-between px-3 py-1.5 rounded text-xs border ${allowed ? "bg-success-subtle border-success-subtle" : "bg-surface-2 border-subtle"}`}>
                 <span className="text-secondary">{c.label}</span>
-                <span className={`font-bold ${allowed ? "text-emerald-700" : "text-slate-400"}`}>{allowed ? "ALLOW" : "DENY"}</span>
+                <span className={`font-bold ${allowed ? "text-success" : "text-slate-400"}`}>{allowed ? "ALLOW" : "DENY"}</span>
               </div>
             );
           })}

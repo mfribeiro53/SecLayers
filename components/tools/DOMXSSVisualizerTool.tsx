@@ -254,7 +254,7 @@ export default function DOMXSSVisualizerTool() {
             <p className="text-sm font-medium text-secondary mb-1">
               Your payload (HTML-escaped for display):
             </p>
-            <pre className="p-3 rounded-md text-xs font-mono bg-red-50 text-red-800 border border-red-200 overflow-x-auto whitespace-pre-wrap">
+            <pre className="p-3 rounded-md text-xs font-mono bg-danger-subtle text-danger border border-danger-subtle overflow-x-auto whitespace-pre-wrap">
               {highlightedPayload}
             </pre>
           </div>

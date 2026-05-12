@@ -13,9 +13,9 @@ interface FileEntry {
 }
 
 function riskClasses(risk: string): string {
-  if (risk === "danger") return "bg-red-100 text-red-700";
-  if (risk === "warning") return "bg-amber-100 text-amber-700";
-  return "bg-emerald-100 text-emerald-700";
+  if (risk === "danger") return "bg-danger-muted text-danger";
+  if (risk === "warning") return "bg-warning-muted text-warning";
+  return "bg-success-muted text-success";
 }
 
 const FILE_SYSTEM: Record<string, FileEntry[]> = {
@@ -62,7 +62,7 @@ export default function MobileFSExplorerTool() {
       <div className="space-y-4">
         {/* Breadcrumb */}
         <div className="flex items-center gap-1 text-sm flex-wrap">
-          <button onClick={() => { setCurrentPath("/"); setSelectedFile(null); }} className="text-blue-500 hover:text-blue-700">/</button>
+          <button onClick={() => { setCurrentPath("/"); setSelectedFile(null); }} className="text-info hover:text-info">/</button>
           {pathParts.map((part, i) => (
             <span key={i} className="flex items-center gap-1">
               <span className="text-slate-400">/</span>
@@ -71,7 +71,7 @@ export default function MobileFSExplorerTool() {
                   setCurrentPath("/" + pathParts.slice(0, i + 1).join("/"));
                   setSelectedFile(null);
                 }}
-                className="text-blue-500 hover:text-blue-700"
+                className="text-info hover:text-info"
               >
                 {part}
               </button>
@@ -92,7 +92,7 @@ export default function MobileFSExplorerTool() {
                   setSelectedFile(entry);
                 }
               }}
-              className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-subtle hover:bg-surface-2 transition-colors ${selectedFile?.path === entry.path ? "bg-blue-50" : ""}`}
+              className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-subtle hover:bg-surface-2 transition-colors ${selectedFile?.path === entry.path ? "bg-info-subtle" : ""}`}
             >
               <div className="flex items-center gap-2">
                 <span>{entry.type === "dir" ? "📁" : "📄"}</span>
@@ -124,7 +124,7 @@ export default function MobileFSExplorerTool() {
           </div>
         )}
 
-        <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+        <div className="p-4 rounded-lg bg-warning-subtle border border-warning-subtle text-sm text-warning">
           <p className="font-medium mb-1">Insecure Storage Patterns Found:</p>
           <ul className="text-xs space-y-1 list-disc list-inside">
             <li>API keys and auth tokens in SharedPreferences (plaintext XML)</li>

@@ -75,11 +75,11 @@ export default function IntentRouterTool() {
         {/* Intent flow */}
         <div className="grid grid-cols-[1fr_auto_1fr] gap-y-4 gap-x-3 items-start text-sm">
           {/* Sender */}
-          <div className="p-3 rounded-lg border border-blue-200 bg-blue-50">
-            <p className="font-medium text-blue-800 text-xs">{selectedCase.sender}</p>
-            <p className="text-xs text-blue-600 mt-1">Sending intent...</p>
-            <pre className="mt-1 p-1.5 rounded text-xs font-mono bg-blue-100 text-blue-700 break-all whitespace-pre-wrap">{selectedCase.intent}</pre>
-            <p className="text-xs text-blue-500 mt-1">Data: {selectedCase.data}</p>
+          <div className="p-3 rounded-lg border border-info-subtle bg-info-subtle">
+            <p className="font-medium text-info text-xs">{selectedCase.sender}</p>
+            <p className="text-xs text-info mt-1">Sending intent...</p>
+            <pre className="mt-1 p-1.5 rounded text-xs font-mono bg-info-muted text-info break-all whitespace-pre-wrap">{selectedCase.intent}</pre>
+            <p className="text-xs text-info mt-1">Data: {selectedCase.data}</p>
           </div>
 
           {/* Intercept */}
@@ -95,8 +95,8 @@ export default function IntentRouterTool() {
           </div>
 
           {/* Receiver */}
-          <div className={`p-3 rounded-lg border ${selectedCase.vulnerable && simulateIntercept ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50"}`}>
-            <p className={`font-medium text-xs ${selectedCase.vulnerable && simulateIntercept ? "text-red-800" : "text-emerald-800"}`}>
+          <div className={`p-3 rounded-lg border ${selectedCase.vulnerable && simulateIntercept ? "border-danger-subtle bg-danger-subtle" : "border-success-subtle bg-success-subtle"}`}>
+            <p className={`font-medium text-xs ${selectedCase.vulnerable && simulateIntercept ? "text-danger" : "text-success"}`}>
               {selectedCase.vulnerable && simulateIntercept ? "com.malware.app ⚠️" : "com.bank.app ✅"}
             </p>
             <p className="text-xs mt-1">
@@ -118,7 +118,7 @@ export default function IntentRouterTool() {
         )}
 
         {/* Explanation */}
-        <div className={`p-4 rounded-lg border text-sm ${selectedCase.vulnerable ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-emerald-50 border-emerald-200 text-emerald-800"}`}>
+        <div className={`p-4 rounded-lg border text-sm ${selectedCase.vulnerable ? "bg-warning-subtle border-warning-subtle text-warning" : "bg-success-subtle border-success-subtle text-success"}`}>
           <p className="font-medium text-xs mb-1">{selectedCase.vulnerable ? "⚠️ Vulnerability" : "✅ Secure Pattern"}</p>
           <p className="text-xs">{selectedCase.explanation}</p>
         </div>
