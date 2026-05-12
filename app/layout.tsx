@@ -23,11 +23,18 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-sans antialiased" style={{ background: "var(--bg-page)", color: "var(--text-primary)" }}>
         <AppProvider>
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[9999] focus:px-4 focus:py-2 focus:rounded-md focus:text-sm focus:font-medium focus:text-white"
+            style={{ background: "var(--accent)" } as React.CSSProperties}
+          >
+            Skip to main content
+          </a>
           <div className="flex h-screen overflow-hidden">
             <Sidebar />
             <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
               <TopNav />
-              <main className="flex-1 overflow-auto">
+              <main id="main-content" className="flex-1 overflow-auto">
                 {children}
               </main>
             </div>

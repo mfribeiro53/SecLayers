@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import glossaryData from "@/content/glossary.json";
@@ -65,6 +66,8 @@ export function GlossaryPanel() {
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered]);
 
+  const trapRef = useFocusTrap(glossaryOpen);
+
   if (!mounted) return null;
 
   const panel = (
@@ -74,11 +77,17 @@ export function GlossaryPanel() {
         <div
           className="fixed inset-0 z-50 bg-black/60"
           onClick={() => setGlossaryOpen(false)}
+          aria-hidden="true"
         />
       )}
 
       {/* Panel */}
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="glossary-panel-title"
+        aria-hidden={!glossaryOpen}
         className="fixed top-0 right-0 z-50 h-full w-full max-w-md flex flex-col transition-transform duration-300"
         style={{
           background: "var(--bg-surface)",
@@ -95,7 +104,7 @@ export function GlossaryPanel() {
             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
             <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
           </svg>
-          <span className="font-semibold text-sm flex-1" style={{ color: "var(--text-primary)" }}>
+          <span id="glossary-panel-title" className="font-semibold text-sm flex-1" style={{ color: "var(--text-primary)" }}>
             Glossary
           </span>
           <Link
@@ -108,6 +117,7 @@ export function GlossaryPanel() {
           </Link>
           <button
             onClick={() => setGlossaryOpen(false)}
+            aria-label="Close glossary"
             className="p-1 rounded transition-colors hover:bg-white/10"
             style={{ color: "var(--text-muted)" }}
           >
@@ -128,6 +138,7 @@ export function GlossaryPanel() {
             <input
               type="text"
               placeholder="Search terms..."
+              aria-label="Search glossary terms"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full text-sm pl-8 pr-3 py-2 rounded-lg outline-none transition-colors"

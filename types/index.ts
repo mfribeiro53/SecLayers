@@ -58,6 +58,16 @@ export type ActColor =
   | "rose"
   | "cyan";
 
+export interface Lab {
+  slug: string;
+  title: string;
+  act: number;
+  chapterSlug: string;
+  difficulty: "easy" | "medium" | "hard";
+  objective: string;
+  tags: string[];
+}
+
 export const ACT_NUMBER_TO_COLOR: Record<number, ActColor> = {
   1: "slate",
   2: "blue",

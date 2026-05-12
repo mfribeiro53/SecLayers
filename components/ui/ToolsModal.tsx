@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { TOPICS, ACT_TEXT, ACT_BG, ACT_BORDER, ACT_LABELS, groupTopicsByAct } from "@/lib/topics";
@@ -37,6 +38,7 @@ interface ToolsModalProps {
 function ToolsModalContent({ onClose }: { onClose: () => void }) {
   const [search, setSearch] = useState("");
   const groups = groupTopicsByAct();
+  const trapRef = useFocusTrap(true);
 
   // Close on Escape
   useEffect(() => {
@@ -56,6 +58,7 @@ function ToolsModalContent({ onClose }: { onClose: () => void }) {
         className="fixed inset-0 z-[90] bg-black/70"
         style={{ backdropFilter: "blur(4px)" }}
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Panel */}
@@ -63,6 +66,10 @@ function ToolsModalContent({ onClose }: { onClose: () => void }) {
         className="fixed inset-0 z-[100] flex items-start justify-center pt-16 px-4 pb-8 pointer-events-none"
       >
         <div
+          ref={trapRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tools-modal-title"
           className="relative w-full max-w-4xl max-h-[80vh] flex flex-col rounded-2xl overflow-hidden pointer-events-auto"
           style={{
             background: "var(--bg-surface)",
@@ -77,7 +84,7 @@ function ToolsModalContent({ onClose }: { onClose: () => void }) {
             <svg viewBox="0 0 24 24" className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--accent)" }}>
               <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
             </svg>
-            <span className="font-semibold text-sm flex-1" style={{ color: "var(--text-primary)" }}>
+            <span id="tools-modal-title" className="font-semibold text-sm flex-1" style={{ color: "var(--text-primary)" }}>
               Interactive Tools
             </span>
             {/* Search */}
@@ -102,6 +109,7 @@ function ToolsModalContent({ onClose }: { onClose: () => void }) {
             </div>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1.5 rounded-lg transition-colors hover:bg-white/10"
               style={{ color: "var(--text-muted)" }}
             >

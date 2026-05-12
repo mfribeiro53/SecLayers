@@ -120,6 +120,11 @@ export function Sidebar() {
           </span>
         </div>
         <div
+          role="progressbar"
+          aria-valuenow={completedCount}
+          aria-valuemin={0}
+          aria-valuemax={totalCount}
+          aria-label={`${completedCount} of ${totalCount} topics completed`}
           className="h-1.5 rounded-full overflow-hidden"
           style={{ background: "var(--bg-elevated)" }}
         >
@@ -146,6 +151,8 @@ export function Sidebar() {
               {/* Act header */}
               <button
                 onClick={() => toggleAct(act)}
+                aria-expanded={isOpen}
+                aria-controls={`act-${act}-topics`}
                 className="w-full flex items-center gap-2 px-4 py-2 text-left transition-colors hover:bg-white/5"
               >
                 <Chevron open={isOpen} />
@@ -158,7 +165,7 @@ export function Sidebar() {
 
               {/* Topic items */}
               {isOpen && (
-                <ul>
+                <ul id={`act-${act}-topics`}>
                   {topics.map((topic) => {
                     const isActive = pathname === `/${topic.slug}` || pathname === `/${topic.slug}/tool`;
                     const isDone = completedTopics.has(topic.num);
@@ -169,6 +176,7 @@ export function Sidebar() {
                       <li key={topic.slug}>
                         <Link
                           href={`/${topic.slug}`}
+                          aria-current={isActive ? "page" : undefined}
                           className={`flex items-center gap-2.5 pl-7 pr-4 py-1.5 text-xs transition-all border-l-2 ${
                             isActive
                               ? `${actBg} ${actBorder}`
@@ -216,6 +224,16 @@ export function Sidebar() {
           </svg>
           Glossary
           <kbd className="ml-auto text-[9px] px-1 rounded" style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-subtle)" }}>G</kbd>
+        </Link>
+        <Link
+          href="/labs"
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors hover:bg-white/5"
+          style={{ color: "var(--text-muted)" }}
+        >
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18" />
+          </svg>
+          CTF Labs
         </Link>
         <Link
           href="/exam"

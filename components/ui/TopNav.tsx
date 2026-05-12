@@ -41,6 +41,8 @@ export function TopNav() {
     >
       {/* ── Depth mode ── */}
       <div
+        role="group"
+        aria-label="Content depth"
         className="flex items-center gap-0.5 rounded-lg p-0.5"
         style={{
           background: "var(--bg-elevated)",
@@ -51,6 +53,7 @@ export function TopNav() {
           <button
             key={opt.value}
             onClick={() => setDepthMode(opt.value)}
+            aria-pressed={depthMode === opt.value}
             className="px-3 py-1 rounded-md text-xs font-medium transition-all"
             style={
               depthMode === opt.value
@@ -67,6 +70,7 @@ export function TopNav() {
       <div className="flex items-center gap-2">
         <button
           onClick={() => setInterviewMode(!interviewMode)}
+          aria-pressed={interviewMode}
           className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
           style={
             interviewMode
@@ -103,6 +107,8 @@ export function TopNav() {
 
         {/* Difficulty selector — only when interview mode is on */}
         <div
+          role="group"
+          aria-label="Interview difficulty"
           className={`flex items-center gap-0.5 rounded-lg p-0.5 transition-opacity ${
             interviewMode ? "opacity-100" : "opacity-30 pointer-events-none"
           }`}
@@ -115,6 +121,7 @@ export function TopNav() {
             <button
               key={opt.value}
               onClick={() => setDifficulty(opt.value)}
+              aria-pressed={difficulty === opt.value}
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
                 difficulty === opt.value ? opt.active : opt.color
               }`}

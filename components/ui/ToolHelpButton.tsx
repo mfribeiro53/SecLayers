@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 interface ToolHelpButtonProps {
   goal: string;
@@ -16,6 +17,8 @@ function HelpModal({
   lookFor,
   onClose,
 }: Omit<ToolHelpButtonProps, "children"> & { onClose: () => void }) {
+  const trapRef = useFocusTrap(true);
+
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -30,9 +33,14 @@ function HelpModal({
         className="fixed inset-0 z-[110] bg-black/60"
         style={{ backdropFilter: "blur(4px)" }}
         onClick={onClose}
+        aria-hidden="true"
       />
       <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 pointer-events-none">
         <div
+          ref={trapRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="help-modal-title"
           className="relative w-full max-w-lg rounded-2xl overflow-hidden pointer-events-auto"
           style={{
             background: "var(--bg-surface)",
@@ -61,11 +69,12 @@ function HelpModal({
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
-            <span className="font-semibold text-sm flex-1" style={{ color: "var(--text-primary)" }}>
+            <span id="help-modal-title" className="font-semibold text-sm flex-1" style={{ color: "var(--text-primary)" }}>
               How to use this tool
             </span>
             <button
               onClick={onClose}
+              aria-label="Close"
               className="p-1 rounded transition-colors hover:bg-white/10"
               style={{ color: "var(--text-muted)" }}
             >
