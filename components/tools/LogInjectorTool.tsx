@@ -58,9 +58,9 @@ export default function LogInjectorTool() {
     <ToolShell title="Log Injection Demo" description="See how unsanitized input can forge log entries.">
       <div className="space-y-4">
         <div className="flex gap-2 items-center">
-          <span className="text-xs text-slate-600 font-medium">Mode:</span>
-          <button onClick={() => setMode("raw")} className={`px-2 py-1 text-xs rounded border ${mode === "raw" ? "bg-slate-800 text-white border-slate-800" : "bg-white border-slate-200 text-slate-600"}`}>Raw string concat</button>
-          <button onClick={() => setMode("structured")} className={`px-2 py-1 text-xs rounded border ${mode === "structured" ? "bg-emerald-700 text-white border-emerald-700" : "bg-white border-slate-200 text-slate-600"}`}>Structured JSON</button>
+          <span className="text-xs text-secondary font-medium">Mode:</span>
+          <button onClick={() => setMode("raw")} className={`px-2 py-1 text-xs rounded border ${mode === "raw" ? "bg-slate-800 text-white border-slate-800" : "bg-surface-2 border-subtle text-secondary"}`}>Raw string concat</button>
+          <button onClick={() => setMode("structured")} className={`px-2 py-1 text-xs rounded border ${mode === "structured" ? "bg-emerald-700 text-white border-emerald-700" : "bg-surface-2 border-subtle text-secondary"}`}>Structured JSON</button>
         </div>
 
         {mode === "raw" ? (
@@ -79,7 +79,7 @@ export default function LogInjectorTool() {
         <div className="flex flex-wrap gap-1.5">
           <span className="text-xs text-slate-500">Examples:</span>
           {Object.entries(EXAMPLES).map(([k, v]) => (
-            <button key={k} onClick={() => setInput(v)} className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200">
+            <button key={k} onClick={() => setInput(v)} className="px-2 py-0.5 text-xs bg-elevated text-secondary rounded hover:bg-strong">
               {k}
             </button>
           ))}
@@ -90,10 +90,10 @@ export default function LogInjectorTool() {
             value={input}
             onChange={e => setInput(e.target.value)}
             placeholder="Enter username..."
-            className="flex-1 text-xs border border-slate-200 rounded px-2 py-1.5 font-mono"
+            className="flex-1 text-xs border border-subtle rounded px-2 py-1.5 font-mono"
           />
           <button onClick={submit} className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Submit</button>
-          <button onClick={reset} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200">Reset</button>
+          <button onClick={reset} className="px-3 py-1.5 bg-elevated text-secondary rounded text-xs hover:bg-strong">Reset</button>
         </div>
 
         {attacked && (

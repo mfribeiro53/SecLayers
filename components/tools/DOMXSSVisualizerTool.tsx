@@ -179,7 +179,7 @@ export default function DOMXSSVisualizerTool() {
       <div className="space-y-5">
         {/* Input */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
+          <label className="block text-sm font-medium text-secondary mb-1">
             XSS Payload
           </label>
           <div className="flex gap-2">
@@ -191,14 +191,14 @@ export default function DOMXSSVisualizerTool() {
                 setScenarioLabel("");
               }}
               placeholder='e.g. <img src=x onerror=alert(1)>'
-              className="flex-1 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="flex-1 px-3 py-2 border border-subtle rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
 
         {/* Preset payloads */}
         <div>
-          <p className="text-sm font-medium text-slate-600 mb-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             Try these payloads:
           </p>
           <div className="flex flex-wrap gap-2">
@@ -209,7 +209,7 @@ export default function DOMXSSVisualizerTool() {
                 className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
                   scenarioLabel === p.label
                     ? "bg-slate-800 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    : "bg-elevated text-secondary hover:bg-strong"
                 }`}
               >
                 {p.label}
@@ -225,18 +225,18 @@ export default function DOMXSSVisualizerTool() {
 
         {/* Type tabs */}
         <div>
-          <p className="text-sm font-medium text-slate-600 mb-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             XSS Type:
           </p>
-          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+          <div className="flex gap-1 bg-elevated p-1 rounded-lg w-fit">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 py-1.5 text-sm rounded-md font-medium transition-colors ${
                   activeTab === tab.id
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-surface-2 text-secondary shadow-sm"
+                    : "text-slate-500 hover:text-secondary"
                 }`}
               >
                 {tab.label}
@@ -251,7 +251,7 @@ export default function DOMXSSVisualizerTool() {
         {/* Highlighted payload */}
         {payload && (
           <div>
-            <p className="text-sm font-medium text-slate-600 mb-1">
+            <p className="text-sm font-medium text-secondary mb-1">
               Your payload (HTML-escaped for display):
             </p>
             <pre className="p-3 rounded-md text-xs font-mono bg-red-50 text-red-800 border border-red-200 overflow-x-auto whitespace-pre-wrap">
@@ -262,13 +262,13 @@ export default function DOMXSSVisualizerTool() {
 
         {/* Rendered preview — sandboxed iframe */}
         <div>
-          <p className="text-sm font-medium text-slate-600 mb-1">
+          <p className="text-sm font-medium text-secondary mb-1">
             Rendered Output
             <span className="text-slate-400 font-normal ml-1">
               (sandboxed — scripts execute here but cannot affect this page)
             </span>
           </p>
-          <div className="border border-slate-300 rounded-lg overflow-hidden bg-white">
+          <div className="border border-subtle rounded-lg overflow-hidden bg-surface-2">
             <iframe
               srcDoc={getVisibleHtml()}
               sandbox="allow-scripts"
@@ -279,8 +279,8 @@ export default function DOMXSSVisualizerTool() {
         </div>
 
         {/* Explanation */}
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600">
-          <p className="font-medium text-slate-700 mb-2">
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm text-secondary">
+          <p className="font-medium text-secondary mb-2">
             What&apos;s happening?
           </p>
           {activeTab === "reflected" && (

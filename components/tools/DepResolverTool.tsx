@@ -66,7 +66,7 @@ export default function DepResolverTool() {
         <div className="flex flex-wrap gap-1.5">
           {SCENARIOS.map((s, i) => (
             <button key={s.id} onClick={() => switchScenario(i)}
-              className={`px-3 py-1 text-xs rounded border transition-colors ${scenarioIdx === i ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}>
+              className={`px-3 py-1 text-xs rounded border transition-colors ${scenarioIdx === i ? "bg-slate-800 text-white border-slate-800" : "bg-surface-2 text-secondary border-subtle hover:border-slate-400"}`}>
               {s.label}
             </button>
           ))}
@@ -75,14 +75,14 @@ export default function DepResolverTool() {
         <p className="text-xs text-slate-500 italic">{scenario.description}</p>
 
         <div className="space-y-2">
-          <p className="text-xs font-semibold text-slate-700">Packages seen by the resolver:</p>
+          <p className="text-xs font-semibold text-secondary">Packages seen by the resolver:</p>
           {scenario.packages.map((pkg, i) => (
-            <div key={i} className={`flex items-start gap-3 p-3 rounded border text-xs ${pkg.malicious ? "border-red-300 bg-red-50" : "border-slate-200 bg-white"}`}>
+            <div key={i} className={`flex items-start gap-3 p-3 rounded border text-xs ${pkg.malicious ? "border-red-300 bg-red-50" : "border-subtle bg-surface-2"}`}>
               <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${pkg.registry === "internal" ? "bg-blue-500" : pkg.malicious ? "bg-red-500" : "bg-green-500"}`} />
               <div className="flex-1 min-w-0">
-                <span className="font-mono font-bold text-slate-900">{pkg.name}</span>
+                <span className="font-mono font-bold text-primary">{pkg.name}</span>
                 <span className="ml-2 text-slate-500">v{pkg.version}</span>
-                <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${pkg.registry === "internal" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
+                <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${pkg.registry === "internal" ? "bg-blue-100 text-blue-700" : "bg-elevated text-secondary"}`}>
                   {pkg.registry === "internal" ? "internal registry" : "npm (public)"}
                 </span>
                 <p className="mt-1 text-slate-500">{pkg.description}</p>
@@ -103,7 +103,7 @@ export default function DepResolverTool() {
                 ? "ATTACK SUCCEEDED — malicious package installed"
                 : "Resolved safely"}
             </p>
-            <p className="text-slate-600">
+            <p className="text-secondary">
               {scenario.id === "confusion"
                 ? `npm prefers the highest version number regardless of registry. v${scenario.publicVersion} > v${scenario.internalVersion}, so the public (malicious) package wins. At install time, the attacker's code runs.`
                 : scenario.id === "scoped"

@@ -73,7 +73,7 @@ export default function HeapVisualizerTool() {
           <button onClick={() => { if (selectedId) reallocate(selectedId); }} disabled={!selectedId} className="px-3 py-1.5 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 disabled:opacity-40">Reallocate</button>
         </div>
 
-        <div className="border border-slate-300 rounded-lg overflow-hidden font-mono text-xs">
+        <div className="border border-subtle rounded-lg overflow-hidden font-mono text-xs">
           {chunks.map((chunk) => {
             const bgColor =
               chunk.status === "allocated" ? "bg-emerald-50" :
@@ -105,11 +105,11 @@ export default function HeapVisualizerTool() {
         </div>
 
         {message && (
-          <div className={`p-3 rounded-lg border text-xs font-mono ${message.includes("⚠") || message.includes("detected") ? "bg-red-50 border-red-200 text-red-700" : "bg-slate-50 border-slate-200 text-slate-600"}`}>{message}</div>
+          <div className={`p-3 rounded-lg border text-xs font-mono ${message.includes("⚠") || message.includes("detected") ? "bg-red-50 border-red-200 text-red-700" : "bg-surface-2 border-subtle text-secondary"}`}>{message}</div>
         )}
 
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600">
-          <p className="font-medium text-slate-700 mb-1">Heap Vulnerabilities</p>
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm text-secondary">
+          <p className="font-medium text-secondary mb-1">Heap Vulnerabilities</p>
           <ul className="text-xs space-y-1 list-disc list-inside">
             <li><strong>Use-After-Free:</strong> Accessing memory after it's freed. The freed chunk may be reallocated with attacker data.</li>
             <li><strong>Double-Free:</strong> Freeing a chunk twice. Corrupts the allocator's free list — can lead to arbitrary write.</li>

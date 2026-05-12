@@ -80,7 +80,7 @@ export default function MobileFSExplorerTool() {
         </div>
 
         {/* File listing */}
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <div className="border border-subtle rounded-lg overflow-hidden">
           {entries.map((entry) => (
             <button
               key={entry.path}
@@ -92,11 +92,11 @@ export default function MobileFSExplorerTool() {
                   setSelectedFile(entry);
                 }
               }}
-              className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-slate-100 hover:bg-slate-50 transition-colors ${selectedFile?.path === entry.path ? "bg-blue-50" : ""}`}
+              className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-subtle hover:bg-surface-2 transition-colors ${selectedFile?.path === entry.path ? "bg-blue-50" : ""}`}
             >
               <div className="flex items-center gap-2">
                 <span>{entry.type === "dir" ? "📁" : "📄"}</span>
-                <span className="text-sm text-slate-700">{entry.name}</span>
+                <span className="text-sm text-secondary">{entry.name}</span>
               </div>
               <span className={"text-xs px-2 py-0.5 rounded " + riskClasses(entry.risk)}>
                 {entry.risk}
@@ -110,9 +110,9 @@ export default function MobileFSExplorerTool() {
 
         {/* File preview */}
         {selectedFile && (
-          <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
+          <div className="p-4 rounded-lg border border-subtle bg-surface-2">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold text-slate-800">{selectedFile.name}</p>
+              <p className="text-sm font-semibold text-secondary">{selectedFile.name}</p>
               <span className={"text-xs px-2 py-0.5 rounded " + riskClasses(selectedFile.risk)}>
                 {selectedFile.risk}
               </span>

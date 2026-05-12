@@ -104,20 +104,20 @@ export default function CryptoPlaygroundTool() {
       <div className="space-y-5">
         {/* Input */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
+          <label className="block text-sm font-medium text-secondary mb-1">
             Plaintext
           </label>
           <input
             type="text"
             value={plaintext}
             onChange={(e) => setPlaintext(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-subtle rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         {/* SHA-256 */}
-        <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
-          <p className="text-sm font-medium text-slate-700 mb-2">
+        <div className="p-4 rounded-lg border border-subtle bg-surface-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             SHA-256 Hashing (integrity — one-way)
           </p>
           <button
@@ -127,7 +127,7 @@ export default function CryptoPlaygroundTool() {
             Hash
           </button>
           {hashResult && (
-            <pre className="p-2 rounded text-xs font-mono bg-white border border-slate-200 break-all whitespace-pre-wrap">
+            <pre className="p-2 rounded text-xs font-mono bg-surface-2 border border-subtle break-all whitespace-pre-wrap">
               {hashResult}
             </pre>
           )}
@@ -139,7 +139,7 @@ export default function CryptoPlaygroundTool() {
 
         {/* AES-GCM */}
         <div className="p-4 rounded-lg border border-indigo-200 bg-indigo-50">
-          <p className="text-sm font-medium text-slate-700 mb-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             AES-256-GCM Encryption (confidentiality — reversible)
           </p>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -179,7 +179,7 @@ export default function CryptoPlaygroundTool() {
               <p className="text-xs text-slate-500">
                 Ciphertext (IV prepended, hex):
               </p>
-              <pre className="p-1.5 rounded text-xs font-mono bg-white border border-slate-200 break-all whitespace-pre-wrap">
+              <pre className="p-1.5 rounded text-xs font-mono bg-surface-2 border border-subtle break-all whitespace-pre-wrap">
                 {ciphertext}
               </pre>
             </div>

@@ -114,7 +114,7 @@ export default function EncodingSandboxTool() {
       <div className="space-y-5">
         {/* Input */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
+          <label className="block text-sm font-medium text-secondary mb-1">
             Untrusted Input
           </label>
           <input
@@ -125,13 +125,13 @@ export default function EncodingSandboxTool() {
               setScenarioLabel("");
             }}
             placeholder='Try: <script>alert(1)</script>'
-            className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-subtle rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         {/* Dangerous inputs */}
         <div>
-          <p className="text-sm font-medium text-slate-600 mb-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             Try these dangerous inputs:
           </p>
           <div className="flex flex-wrap gap-2">
@@ -145,7 +145,7 @@ export default function EncodingSandboxTool() {
                 className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
                   scenarioLabel === d.label
                     ? "bg-slate-800 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    : "bg-elevated text-secondary hover:bg-strong"
                 }`}
               >
                 {d.label}
@@ -164,18 +164,18 @@ export default function EncodingSandboxTool() {
 
         {/* Context selector */}
         <div>
-          <p className="text-sm font-medium text-slate-600 mb-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             Output Context:
           </p>
-          <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+          <div className="flex flex-wrap gap-1 bg-elevated p-1 rounded-lg w-fit">
             {(Object.keys(CONTEXTS) as EncodeContext[]).map((ctx) => (
               <button
                 key={ctx}
                 onClick={() => setContext(ctx)}
                 className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
                   context === ctx
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-surface-2 text-secondary shadow-sm"
+                    : "text-slate-500 hover:text-secondary"
                 }`}
               >
                 {CONTEXTS[ctx].label}
@@ -216,9 +216,9 @@ export default function EncodingSandboxTool() {
         )}
 
         {/* Context example */}
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm">
-          <p className="font-medium text-slate-700 mb-1">Usage Example</p>
-          <code className="text-xs text-slate-600 break-all">
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm">
+          <p className="font-medium text-secondary mb-1">Usage Example</p>
+          <code className="text-xs text-secondary break-all">
             {CONTEXTS[context].example.replace("DATA", encoded || "(encoded input)")}
           </code>
         </div>

@@ -94,8 +94,8 @@ export default function CsrfSimulatorTool() {
     >
       <div className="space-y-5">
         {/* Scenario */}
-        <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
-          <p className="text-sm font-medium text-slate-700 mb-2">
+        <div className="p-4 rounded-lg border border-subtle bg-surface-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             Attack Scenario
           </p>
           <div className="flex flex-wrap gap-2 mb-3">
@@ -109,24 +109,24 @@ export default function CsrfSimulatorTool() {
                 className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
                   scenario.label === s.label
                     ? "bg-slate-800 text-white"
-                    : "bg-white border border-slate-300 text-slate-600 hover:bg-slate-100"
+                    : "bg-surface-2 border border-subtle text-secondary hover:bg-elevated"
                 }`}
               >
                 {s.label}
               </button>
             ))}
           </div>
-          <div className="text-sm text-slate-600 space-y-1">
+          <div className="text-sm text-secondary space-y-1">
             <p>
               <strong>Method:</strong> {scenario.method}{" "}
               <strong className="ml-3">Endpoint:</strong>{" "}
-              <code className="text-xs bg-slate-200 px-1 rounded">
+              <code className="text-xs bg-strong px-1 rounded">
                 {scenario.endpoint}
               </code>
             </p>
             <p>
               <strong>Parameters:</strong>{" "}
-              <code className="text-xs bg-slate-200 px-1 rounded">
+              <code className="text-xs bg-strong px-1 rounded">
                 {scenario.params}
               </code>
             </p>
@@ -190,17 +190,17 @@ export default function CsrfSimulatorTool() {
         </div>
 
         {/* Defenses panel */}
-        <div className="p-4 rounded-lg border border-slate-200 bg-white">
-          <p className="text-sm font-medium text-slate-700 mb-3">
+        <div className="p-4 rounded-lg border border-subtle bg-surface-2">
+          <p className="text-sm font-medium text-secondary mb-3">
             CSRF Defenses (toggle to see effect)
           </p>
           <div className="space-y-3">
             {/* SameSite */}
             <div>
-              <label className="text-xs font-medium text-slate-600 block mb-1">
+              <label className="text-xs font-medium text-secondary block mb-1">
                 SameSite Cookie Policy
               </label>
-              <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+              <div className="flex gap-1 bg-elevated p-1 rounded-lg w-fit">
                 {(["none", "lax", "strict"] as SameSiteValue[]).map(
                   (val) => (
                     <button
@@ -211,8 +211,8 @@ export default function CsrfSimulatorTool() {
                       }}
                       className={`px-3 py-1 text-xs rounded-md font-medium transition-colors capitalize ${
                         sameSite === val
-                          ? "bg-white text-slate-800 shadow-sm"
-                          : "text-slate-500 hover:text-slate-700"
+                          ? "bg-surface-2 text-secondary shadow-sm"
+                          : "text-slate-500 hover:text-secondary"
                       }`}
                     >
                       {val}
@@ -231,9 +231,9 @@ export default function CsrfSimulatorTool() {
                   setHasToken(e.target.checked);
                   setRequestResult(null);
                 }}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-subtle text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-slate-700">
+              <span className="text-sm text-secondary">
                 Anti-CSRF Token (server validates token in form)
               </span>
             </label>
@@ -247,9 +247,9 @@ export default function CsrfSimulatorTool() {
                   setHasOriginCheck(e.target.checked);
                   setRequestResult(null);
                 }}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-subtle text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-sm text-slate-700">
+              <span className="text-sm text-secondary">
                 Origin / Referer Validation (server checks request origin)
               </span>
             </label>

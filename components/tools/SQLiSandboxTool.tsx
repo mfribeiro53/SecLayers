@@ -216,13 +216,13 @@ export default function SQLiSandboxTool() {
       <div className="space-y-6">
         {/* Mode toggle */}
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-slate-600">Mode:</span>
+          <span className="text-sm font-medium text-secondary">Mode:</span>
           <button
             onClick={() => setMode("vulnerable")}
             className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
               mode === "vulnerable"
                 ? "bg-red-600 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                : "bg-elevated text-secondary hover:bg-strong"
             }`}
           >
             Vulnerable (String Concat)
@@ -232,7 +232,7 @@ export default function SQLiSandboxTool() {
             className={`px-3 py-1.5 text-sm rounded-md font-medium transition-colors ${
               mode === "safe"
                 ? "bg-emerald-600 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                : "bg-elevated text-secondary hover:bg-strong"
             }`}
           >
             Safe (Parameterized)
@@ -242,7 +242,7 @@ export default function SQLiSandboxTool() {
         {/* Input fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-secondary mb-1">
               Username
             </label>
             <input
@@ -254,11 +254,11 @@ export default function SQLiSandboxTool() {
               }}
               onKeyDown={handleKeyDown}
               placeholder="e.g. alice"
-              className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-subtle rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-secondary mb-1">
               Password
             </label>
             <input
@@ -270,7 +270,7 @@ export default function SQLiSandboxTool() {
               }}
               onKeyDown={handleKeyDown}
               placeholder="e.g. letmein"
-              className="w-full px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-subtle rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         </div>
@@ -287,7 +287,7 @@ export default function SQLiSandboxTool() {
           <button
             onClick={resetDb}
             disabled={!SQL}
-            className="px-4 py-2 bg-slate-100 text-slate-700 rounded-md font-medium text-sm hover:bg-slate-200 transition-colors"
+            className="px-4 py-2 bg-elevated text-secondary rounded-md font-medium text-sm hover:bg-strong transition-colors"
           >
             Reset Database
           </button>
@@ -295,7 +295,7 @@ export default function SQLiSandboxTool() {
 
         {/* Scenarios */}
         <div>
-          <p className="text-sm font-medium text-slate-600 mb-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             Try these scenarios:
           </p>
           <div className="flex flex-wrap gap-2">
@@ -306,7 +306,7 @@ export default function SQLiSandboxTool() {
                 className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${
                   scenarioLabel === s.label
                     ? "bg-slate-800 text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    : "bg-elevated text-secondary hover:bg-strong"
                 }`}
               >
                 {s.label}
@@ -326,7 +326,7 @@ export default function SQLiSandboxTool() {
         {/* Constructed query */}
         {constructedQuery && (
           <div>
-            <p className="text-sm font-medium text-slate-600 mb-1">
+            <p className="text-sm font-medium text-secondary mb-1">
               Constructed SQL
             </p>
             {mode === "vulnerable" ? (
@@ -354,19 +354,19 @@ export default function SQLiSandboxTool() {
         {/* Results */}
         {results && (
           <div>
-            <p className="text-sm font-medium text-slate-600 mb-1">
+            <p className="text-sm font-medium text-secondary mb-1">
               Results ({results.values.length} row
               {results.values.length !== 1 ? "s" : ""})
             </p>
             {results.values.length > 0 ? (
-              <div className="overflow-x-auto border border-slate-200 rounded-md">
+              <div className="overflow-x-auto border border-subtle rounded-md">
                 <table className="w-full text-sm">
-                  <thead className="bg-slate-50">
+                  <thead className="bg-surface-2">
                     <tr>
                       {results.columns.map((col) => (
                         <th
                           key={col}
-                          className="px-3 py-2 text-left font-medium text-slate-600 border-b border-slate-200"
+                          className="px-3 py-2 text-left font-medium text-secondary border-b border-subtle"
                         >
                           {col}
                         </th>
@@ -378,13 +378,13 @@ export default function SQLiSandboxTool() {
                       <tr
                         key={i}
                         className={
-                          i % 2 === 0 ? "bg-white" : "bg-slate-50/50"
+                          i % 2 === 0 ? "bg-surface-2" : "bg-elevated"
                         }
                       >
                         {row.map((val, j) => (
                           <td
                             key={j}
-                            className="px-3 py-1.5 text-slate-700 border-b border-slate-100 font-mono text-xs"
+                            className="px-3 py-1.5 text-secondary border-b border-subtle font-mono text-xs"
                           >
                             {String(val)}
                           </td>

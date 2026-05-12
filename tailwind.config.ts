@@ -11,6 +11,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Dark theme semantic tokens — maps to CSS vars in globals.css
+        "surface-2": "var(--bg-surface-2)",
+        elevated: "var(--bg-elevated)",
+        primary: "var(--text-primary)",
+        secondary: "var(--text-secondary)",
+        muted: "var(--text-muted)",
+        subtle: "var(--border-subtle)",
+        strong: "var(--border-strong)",
         // Act colors
         "act-foundations": {
           50: "#f8fafc",

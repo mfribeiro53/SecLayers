@@ -26,13 +26,13 @@ export default function TLSVisualizerTool() {
         {/* Controls */}
         <div className="flex flex-wrap gap-4 items-center">
           <div className="flex items-center gap-2">
-            <button onClick={() => setStep(Math.max(1, step - 1))} className="px-2 py-1 text-xs rounded bg-slate-100 hover:bg-slate-200">←</button>
-            <span className="text-sm font-medium text-slate-700">Step {step}/6</span>
-            <button onClick={() => setStep(Math.min(6, step + 1))} className="px-2 py-1 text-xs rounded bg-slate-100 hover:bg-slate-200">→</button>
+            <button onClick={() => setStep(Math.max(1, step - 1))} className="px-2 py-1 text-xs rounded bg-elevated hover:bg-strong">←</button>
+            <span className="text-sm font-medium text-secondary">Step {step}/6</span>
+            <button onClick={() => setStep(Math.min(6, step + 1))} className="px-2 py-1 text-xs rounded bg-elevated hover:bg-strong">→</button>
           </div>
           <label className="flex items-center gap-1.5 text-xs cursor-pointer">
             <input type="checkbox" checked={pinningEnabled} onChange={(e) => setPinningEnabled(e.target.checked)} className="rounded" />
-            <span className="text-slate-600">Cert Pinning</span>
+            <span className="text-secondary">Cert Pinning</span>
           </label>
           <label className="flex items-center gap-1.5 text-xs cursor-pointer">
             <input type="checkbox" checked={mitmActive} onChange={(e) => setMitmActive(e.target.checked)} className="rounded" />
@@ -48,13 +48,13 @@ export default function TLSVisualizerTool() {
           {HANDSHAKE_STEPS.map((s) => (
             <div key={s.step} className="contents">
               <div className={`p-2 rounded-lg border text-right ${s.step === step ? "border-blue-300 bg-blue-50" : "border-transparent bg-transparent"}`}>
-                {s.client && <span className={s.step === step ? "text-slate-700" : "text-slate-400"}>{s.client}</span>}
+                {s.client && <span className={s.step === step ? "text-secondary" : "text-slate-400"}>{s.client}</span>}
               </div>
               <div className="flex items-center justify-center">
                 {s.client && s.server ? "⇄" : s.client ? "→" : "←"}
               </div>
               <div className={`p-2 rounded-lg border ${s.step === step ? "border-blue-300 bg-blue-50" : "border-transparent bg-transparent"}`}>
-                {s.server && <span className={s.step === step ? "text-slate-700" : "text-slate-400"}>{s.server}</span>}
+                {s.server && <span className={s.step === step ? "text-secondary" : "text-slate-400"}>{s.server}</span>}
               </div>
             </div>
           ))}
@@ -78,8 +78,8 @@ export default function TLSVisualizerTool() {
           </div>
         )}
 
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600">
-          <p className="font-medium text-slate-700 mb-1">Mobile TLS Best Practices</p>
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm text-secondary">
+          <p className="font-medium text-secondary mb-1">Mobile TLS Best Practices</p>
           <ul className="text-xs space-y-1 list-disc list-inside">
             <li>Use certificate pinning for all backend connections</li>
             <li>Pin the public key (not the cert) to survive cert rotation</li>

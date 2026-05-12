@@ -30,7 +30,7 @@ const ACTIVITIES: Activity[] = [
 ];
 
 const PHASES = [
-  { id: "requirements", label: "1. Requirements", color: "bg-slate-100 border-slate-300" },
+  { id: "requirements", label: "1. Requirements", color: "bg-elevated border-subtle" },
   { id: "design", label: "2. Design", color: "bg-blue-50 border-blue-200" },
   { id: "development", label: "3. Development", color: "bg-violet-50 border-violet-200" },
   { id: "testing", label: "4. Testing", color: "bg-amber-50 border-amber-200" },
@@ -78,12 +78,12 @@ export default function SdlcTimelineTool() {
         {/* Progress bar */}
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span className="text-slate-600">Coverage</span>
+            <span className="text-secondary">Coverage</span>
             <span className="text-slate-400">
               {totalPlaced}/{totalActivities} activities placed
             </span>
           </div>
-          <div className="w-full bg-slate-200 rounded-full h-2">
+          <div className="w-full bg-strong rounded-full h-2">
             <div
               className="bg-emerald-500 h-2 rounded-full transition-all duration-300"
               style={{ width: `${(totalPlaced / totalActivities) * 100}%` }}
@@ -103,7 +103,7 @@ export default function SdlcTimelineTool() {
               }`}
             >
               <div className="flex items-baseline justify-between mb-2">
-                <p className="text-sm font-semibold text-slate-700">
+                <p className="text-sm font-semibold text-secondary">
                   {phase.label}
                 </p>
                 <span className="text-xs text-slate-400">
@@ -115,7 +115,7 @@ export default function SdlcTimelineTool() {
                   (a) => (
                     <span
                       key={a.id}
-                      className="px-2 py-1 text-xs rounded bg-white border border-slate-200 text-slate-700 shadow-sm"
+                      className="px-2 py-1 text-xs rounded bg-surface-2 border border-subtle text-secondary shadow-sm"
                     >
                       {a.label}
                     </span>
@@ -133,7 +133,7 @@ export default function SdlcTimelineTool() {
 
         {/* Activity palette */}
         <div>
-          <p className="text-sm font-medium text-slate-600 mb-2">
+          <p className="text-sm font-medium text-secondary mb-2">
             Activities to place (drag to a phase):
           </p>
           <div className="flex flex-wrap gap-2">
@@ -145,7 +145,7 @@ export default function SdlcTimelineTool() {
                 className={`px-2.5 py-1.5 text-xs rounded-md font-medium cursor-grab active:cursor-grabbing border transition-colors hover:shadow-sm ${
                   draggedActivity === a.id
                     ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white border-slate-300 text-slate-600 hover:border-blue-400"
+                    : "bg-surface-2 border-subtle text-secondary hover:border-blue-400"
                 }`}
                 title={a.description}
               >
@@ -193,8 +193,8 @@ export default function SdlcTimelineTool() {
           </div>
         )}
 
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600">
-          <p className="font-medium text-slate-700 mb-1">Shift-Left Principle</p>
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm text-secondary">
+          <p className="font-medium text-secondary mb-1">Shift-Left Principle</p>
           <p>
             A vulnerability caught in <strong>Requirements</strong> costs ~$1 to
             fix. The same vulnerability caught in <strong>Operations</strong>{" "}

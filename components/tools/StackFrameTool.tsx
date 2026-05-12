@@ -49,21 +49,21 @@ export default function StackFrameTool() {
       <div className="space-y-4">
         <div className="flex gap-2">
           <button onClick={push} className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700">Push Frame</button>
-          <button onClick={pop} disabled={frames.length <= 1} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded text-xs font-medium hover:bg-slate-200 disabled:opacity-40">Pop Frame</button>
+          <button onClick={pop} disabled={frames.length <= 1} className="px-3 py-1.5 bg-elevated text-secondary rounded text-xs font-medium hover:bg-strong disabled:opacity-40">Pop Frame</button>
           <button onClick={triggerOverflow} className="px-3 py-1.5 bg-red-600 text-white rounded text-xs font-medium hover:bg-red-700">Simulate Overflow</button>
         </div>
 
-        <div className="border border-slate-300 rounded-lg overflow-hidden font-mono text-xs">
+        <div className="border border-subtle rounded-lg overflow-hidden font-mono text-xs">
           <div className="px-3 py-2 bg-slate-800 text-slate-400 text-[10px] uppercase tracking-wider">Stack (grows downward ↓)</div>
           {[...frames].reverse().map((frame) => (
-            <div key={frame.id} className="border-t border-slate-200">
+            <div key={frame.id} className="border-t border-subtle">
               <div className="px-3 py-2 bg-slate-700 text-white text-[11px] font-semibold flex justify-between">
                 <span>{frame.name}</span>
                 <span className="text-slate-400 font-normal">frame {frame.id}</span>
               </div>
               <div className={`px-3 py-1.5 bg-red-50 border-b border-red-100 ${overflow ? "animate-pulse" : ""}`}>
                 <span className="text-red-700">Return Address:</span>{" "}
-                <span className={overflow ? "text-red-600 line-through" : "text-slate-600"}>
+                <span className={overflow ? "text-red-600 line-through" : "text-secondary"}>
                   {overflow && frame.id === frames.length ? "0x41414141 (AAAA)" : frame.returnAddr}
                 </span>
                 {overflow && frame.id === frames.length && (
@@ -72,12 +72,12 @@ export default function StackFrameTool() {
               </div>
               <div className="px-3 py-1.5 bg-amber-50 border-b border-amber-100">
                 <span className="text-amber-700">Saved EBP:</span>{" "}
-                <span className="text-slate-600">{frame.savedEbp}</span>
+                <span className="text-secondary">{frame.savedEbp}</span>
               </div>
               {frame.locals.map((local, i) => (
-                <div key={i} className="px-3 py-1.5 bg-white border-b border-slate-100">
+                <div key={i} className="px-3 py-1.5 bg-surface-2 border-b border-subtle">
                   <span className="text-slate-400">local:</span>{" "}
-                  <span className={overflow && frame.id === frames.length && local.includes("buf") ? "text-red-600" : "text-slate-600"}>
+                  <span className={overflow && frame.id === frames.length && local.includes("buf") ? "text-red-600" : "text-secondary"}>
                     {local}
                   </span>
                   {overflow && frame.id === frames.length && local.includes("buf") && (
@@ -101,9 +101,9 @@ export default function StackFrameTool() {
           </div>
         )}
 
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm">
-          <p className="font-medium text-slate-700 mb-1">Stack Frame Layout (per function call)</p>
-          <ol className="text-xs text-slate-600 list-decimal list-inside space-y-0.5">
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm">
+          <p className="font-medium text-secondary mb-1">Stack Frame Layout (per function call)</p>
+          <ol className="text-xs text-secondary list-decimal list-inside space-y-0.5">
             <li>Function arguments (pushed by caller)</li>
             <li>Return address (where to jump after function returns)</li>
             <li>Saved EBP (caller's base pointer)</li>

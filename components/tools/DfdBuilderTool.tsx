@@ -106,11 +106,11 @@ export default function DfdBuilderTool() {
         {/* Add element form */}
         <div className="flex flex-wrap gap-2 items-end">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Type</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Type</label>
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value as ElementType)}
-              className="px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-subtle rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="entity">External Entity</option>
               <option value="process">Process</option>
@@ -120,14 +120,14 @@ export default function DfdBuilderTool() {
             </select>
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Label</label>
+            <label className="block text-xs font-medium text-secondary mb-1">Label</label>
             <input
               type="text"
               value={labelInput}
               onChange={(e) => setLabelInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addElement()}
               placeholder="e.g. Payment Processor"
-              className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-subtle rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <button
@@ -139,7 +139,7 @@ export default function DfdBuilderTool() {
         </div>
 
         {/* DFD visualization */}
-        <div className="border border-slate-200 rounded-lg p-4 min-h-[120px] bg-slate-50">
+        <div className="border border-subtle rounded-lg p-4 min-h-[120px] bg-surface-2">
           {elements.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-8">
               Add elements to build your DFD. Try: User, Web Server, Database, HTTPS Request, Internet Boundary.
@@ -149,10 +149,10 @@ export default function DfdBuilderTool() {
               {elements.map((el) => (
                 <div
                   key={el.id}
-                  className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-300 rounded-lg shadow-sm text-sm"
+                  className="flex items-center gap-2 px-3 py-2 bg-surface-2 border border-subtle rounded-lg shadow-sm text-sm"
                 >
                   <span className="text-lg">{ELEMENT_ICONS[el.type]}</span>
-                  <span className="font-medium text-slate-700">{el.label}</span>
+                  <span className="font-medium text-secondary">{el.label}</span>
                   <span className="text-xs text-slate-400 uppercase">{el.type}</span>
                   <button
                     onClick={() => removeElement(el.id)}
@@ -182,7 +182,7 @@ export default function DfdBuilderTool() {
         {/* Threat list */}
         {showThreats && allThreats.length > 0 && (
           <div className="space-y-2">
-            <p className="text-sm font-medium text-slate-600">
+            <p className="text-sm font-medium text-secondary">
               Generated STRIDE Threats:
             </p>
             {allThreats.map((t, i) => (
@@ -198,15 +198,15 @@ export default function DfdBuilderTool() {
         )}
 
         {/* STRIDE legend */}
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200">
-          <p className="text-sm font-medium text-slate-700 mb-2">STRIDE Reference</p>
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle">
+          <p className="text-sm font-medium text-secondary mb-2">STRIDE Reference</p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
             {Object.entries(STRIDE_LABELS).map(([letter, label]) => (
               <div key={letter} className="flex items-center gap-1.5">
                 <span className={`px-1.5 py-0.5 rounded font-bold ${STRIDE_COLORS[letter]}`}>
                   {letter}
                 </span>
-                <span className="text-slate-600">{label}</span>
+                <span className="text-secondary">{label}</span>
               </div>
             ))}
           </div>

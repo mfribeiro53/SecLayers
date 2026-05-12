@@ -49,7 +49,7 @@ export default function ThreadTimelineTool() {
       <div className="space-y-4">
         <div className="flex gap-2">
           <button onClick={start} disabled={running} className="px-3 py-1.5 bg-blue-600 text-white rounded text-xs font-medium hover:bg-blue-700 disabled:opacity-50">Start Race</button>
-          <button onClick={stop} className="px-3 py-1.5 bg-slate-100 text-slate-600 rounded text-xs font-medium hover:bg-slate-200">Stop</button>
+          <button onClick={stop} className="px-3 py-1.5 bg-elevated text-secondary rounded text-xs font-medium hover:bg-strong">Stop</button>
         </div>
 
         <div className="space-y-1">
@@ -70,8 +70,8 @@ export default function ThreadTimelineTool() {
           </div>
         )}
 
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm text-slate-600">
-          <p className="font-medium text-slate-700 mb-1">Time-of-Check Time-of-Use (TOCTOU)</p>
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm text-secondary">
+          <p className="font-medium text-secondary mb-1">Time-of-Check Time-of-Use (TOCTOU)</p>
           <p className="text-xs">
             The vulnerability: a resource's state is checked (e.g., "does this file exist? is it safe?"),
             then later used ("open and write to this file"). Between the check and the use,

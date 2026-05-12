@@ -65,7 +65,7 @@ export default function IntentRouterTool() {
             <button
               key={c.id}
               onClick={() => { setSelectedCase(c); setSimulateIntercept(false); }}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${selectedCase.id === c.id ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${selectedCase.id === c.id ? "bg-slate-800 text-white" : "bg-elevated text-secondary hover:bg-strong"}`}
             >
               {c.title}
             </button>
@@ -111,7 +111,7 @@ export default function IntentRouterTool() {
         {selectedCase.vulnerable && (
           <button
             onClick={() => setSimulateIntercept(!simulateIntercept)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${simulateIntercept ? "bg-slate-100 text-slate-600 hover:bg-slate-200" : "bg-red-600 text-white hover:bg-red-700"}`}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${simulateIntercept ? "bg-elevated text-secondary hover:bg-strong" : "bg-red-600 text-white hover:bg-red-700"}`}
           >
             {simulateIntercept ? "Reset" : "Simulate Malicious Intercept"}
           </button>
@@ -124,9 +124,9 @@ export default function IntentRouterTool() {
         </div>
 
         {/* Best practices */}
-        <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-sm">
-          <p className="font-medium text-slate-700 mb-1 text-xs">Intent Security Best Practices</p>
-          <ul className="text-xs space-y-1 list-disc list-inside text-slate-600">
+        <div className="p-4 rounded-lg bg-surface-2 border border-subtle text-sm">
+          <p className="font-medium text-secondary mb-1 text-xs">Intent Security Best Practices</p>
+          <ul className="text-xs space-y-1 list-disc list-inside text-secondary">
             <li>Use explicit intents whenever possible — specify the target component</li>
             <li>Set android:exported=false for components that don't need external access</li>
             <li>Validate all deep link parameters — never trust data from external intents</li>

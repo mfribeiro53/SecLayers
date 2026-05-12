@@ -143,7 +143,7 @@ Context: Phase 1 is fully client-side. Every "real" engine must run in-browser v
 
 | Tool | What Pyodide enables |
 |------|---------------------|
-| **CryptoPlayground** | Run `cryptography`, `hashlib`, `pycryptodome` — compare MD5, SHA-1, SHA-256, bcrypt, Argon2. ECB penguin demo becomes trivial (encrypt a BMP with ECB in Python, render the output). Timing side-channel: `time.perf_counter()` around operations. |
+| **CryptoPlayground** | **Supplement, don't replace** the existing Web Crypto API implementation. AES-GCM and SHA-256 via `crypto.subtle` are already real cryptography — rewriting them in Python adds complexity without adding correctness. Use Pyodide for what Web Crypto can't do: MD5/SHA-1 (deprecated, not in `crypto.subtle`), bcrypt/Argon2 cost factor demos, the ECB penguin demo (encrypt a BMP with ECB in Python, render the output), and timing side-channels via `time.perf_counter()`. |
 | **EncodingSandbox** | Real `html.escape()`, `urllib.parse.quote()`, `json.dumps()`, `base64` — no hand-rolled JS encoders that miss edge cases |
 | **DefensiveCodeLab** | Run student code submissions in sandboxed Python. Validate whether their fix passes predefined test cases |
 | **TerraformScanner** | Run `hcl2` parser or `checkov` rules against HCL snippets |
@@ -532,7 +532,7 @@ The first tool a user visits triggers the 8MB download (~2-5 seconds on broadban
 
 | Tool | Packages needed |
 |------|----------------|
-| CryptoPlayground | `hashlib`, `cryptography`, `bcrypt`, `time` (stdlib) |
+| CryptoPlayground | `hashlib`, `cryptography`, `bcrypt`, `time` (stdlib) — supplements (does not replace) existing Web Crypto API |
 | EncodingSandbox | `html` (stdlib), `urllib.parse` (stdlib), `json` (stdlib), `base64` (stdlib) |
 | DefensiveCodeLab | `re` (stdlib), `ast` (stdlib) |
 | TerraformScanner | `hcl2` (micropip), `jsonschema` (micropip) |

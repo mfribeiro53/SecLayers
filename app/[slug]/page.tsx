@@ -1,11 +1,12 @@
-import fs from "fs";
+import fs from "fs/promises";
 import path from "path";
+import type { Metadata } from "next";
 import { MDXRemote } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
 import rehypeHighlight from "rehype-highlight";
-import { getAdjacentTopics, TOPICS } from "@/lib/topics";
+import { getAdjacentTopics, getTopicBySlug, TOPICS } from "@/lib/topics";
 import { ChapterShell } from "@/components/layout/ChapterShell";
 import { notFound } from "next/navigation";
 import type { InterviewQuestion } from "@/types";
@@ -22,6 +23,15 @@ export function generateStaticParams() {
   return TOPICS.map((topic) => ({ slug: topic.slug }));
 }
 
+export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
+  const topic = getTopicBySlug(params.slug);
+  if (!topic) return { title: "Chapter not found" };
+  return {
+    title: `${topic.title} — SecLayer`,
+    description: `Chapter ${topic.num}: ${topic.title}. ${topic.actLabel} security course with interactive tools.`,
+  };
+}
+
 interface ChapterData {
   source: string;
   hasMdx: boolean;
@@ -29,17 +39,53 @@ interface ChapterData {
   interviewQuestions: InterviewQuestion[];
 }
 
+function parseMisconceptionSection(source: string): {
+  myth: string;
+  reality: string;
+  strippedSource: string;
+} {
+  const sectionIdx = source.search(/\n##\s+(?:Common\s+)?Misconception/);
+  if (sectionIdx === -1) return { myth: "", reality: "", strippedSource: source };
+
+  const section = source.slice(sectionIdx);
+  const strippedSource = source.slice(0, sectionIdx).replace(/\n\n---\s*$/, "");
+
+  // Format 1: **Myth:** ... / **Reality:** ... (most chapters)
+  const mythMatch = section.match(/\*\*Myth:\*\*\s+(.*?)\n/);
+  const realityMatch = section.match(/\*\*Reality:\*\*\s+([\s\S]+?)(?:\n\n---|\n##|$)/);
+  if (mythMatch && realityMatch) {
+    return { myth: mythMatch[1].trim(), reality: realityMatch[1].trim(), strippedSource };
+  }
+
+  // Format 2: **"Myth text"** Reality text (cicd, dep-confusion, sca, sec-tooling, slsa)
+  const singleMatch = section.match(/\*\*"([^"]+)"\*\*\s+([\s\S]+?)(?:\n\n---|\n##|$)/);
+  if (singleMatch) {
+    return { myth: singleMatch[1].trim(), reality: singleMatch[2].trim(), strippedSource };
+  }
+
+  return { myth: "", reality: "", strippedSource: source };
+}
+
 async function loadChapterData(slug: string): Promise<ChapterData> {
   const chaptersDir = path.join(process.cwd(), "content", "chapters");
   const interviewDir = path.join(process.cwd(), "content", "interview");
   const mdxPath = path.join(chaptersDir, `${slug}.mdx`);
-  let source = "";
-  let hasMdx = false;
-  try { source = fs.readFileSync(mdxPath, "utf8"); hasMdx = true; } catch { source = ""; }
   const interviewPath = path.join(interviewDir, `${slug}.json`);
+  const [mdxResult, interviewResult] = await Promise.allSettled([
+    fs.readFile(mdxPath, "utf8"),
+    fs.readFile(interviewPath, "utf8"),
+  ]);
+  const rawSource = mdxResult.status === "fulfilled" ? mdxResult.value : "";
+  const hasMdx = mdxResult.status === "fulfilled";
   let interviewQuestions: InterviewQuestion[] = [];
-  try { interviewQuestions = JSON.parse(fs.readFileSync(interviewPath, "utf8")) as InterviewQuestion[]; } catch { interviewQuestions = []; }
-  const misconception = { myth: "A common myth about this topic will appear here.", reality: "The corrected reality will be explained with evidence." };
+  if (interviewResult.status === "fulfilled") {
+    try { interviewQuestions = JSON.parse(interviewResult.value) as InterviewQuestion[]; } catch { interviewQuestions = []; }
+  }
+  const { myth, reality, strippedSource } = parseMisconceptionSection(rawSource);
+  const source = myth ? strippedSource : rawSource;
+  const misconception = myth
+    ? { myth, reality }
+    : { myth: "A common myth about this topic will appear here.", reality: "The corrected reality will be explained with evidence." };
   return { source, hasMdx, misconception, interviewQuestions };
 }
 

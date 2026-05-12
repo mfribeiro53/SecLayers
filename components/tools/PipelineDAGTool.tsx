@@ -84,7 +84,7 @@ export default function PipelineDAGTool() {
           {STAGES.map((s, i) => (
             <div key={s.id} className="flex items-center flex-1">
               <button onClick={() => setSelectedStage(s.id === selectedStage ? null : s.id)}
-                className={`flex-1 flex flex-col items-center gap-1 px-2 py-2.5 rounded border text-xs transition-colors ${selectedStage === s.id ? "border-slate-600 bg-slate-800 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"}`}>
+                className={`flex-1 flex flex-col items-center gap-1 px-2 py-2.5 rounded border text-xs transition-colors ${selectedStage === s.id ? "border-slate-600 bg-slate-800 text-white" : "border-subtle bg-surface-2 text-secondary hover:border-slate-400"}`}>
                 <span className="text-base">{s.icon}</span>
                 <span className="font-medium leading-tight text-center">{s.label}</span>
               </button>
@@ -100,7 +100,7 @@ export default function PipelineDAGTool() {
             <div className="flex gap-1.5">
               {(["attacks", "defenses"] as const).map(v => (
                 <button key={v} onClick={() => setView(v)}
-                  className={`px-3 py-1 text-xs rounded border transition-colors ${view === v ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}>
+                  className={`px-3 py-1 text-xs rounded border transition-colors ${view === v ? "bg-slate-800 text-white border-slate-800" : "bg-surface-2 text-secondary border-subtle hover:border-slate-400"}`}>
                   {v === "attacks" ? `Attack vectors (${stage.attacks.length})` : `Defenses (${stage.defenses.length})`}
                 </button>
               ))}
@@ -121,7 +121,7 @@ export default function PipelineDAGTool() {
             ) : (
               <ul className="space-y-1.5">
                 {stage.defenses.map((d, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-slate-700">
+                  <li key={i} className="flex items-start gap-2 text-xs text-secondary">
                     <span className="mt-0.5 text-emerald-500 flex-shrink-0">✓</span>
                     {d}
                   </li>

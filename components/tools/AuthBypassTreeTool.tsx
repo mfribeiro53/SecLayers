@@ -101,7 +101,7 @@ export default function AuthBypassTreeTool() {
           {path.map((p, i) => (
             <span key={i} className="flex items-center gap-1">
               {i > 0 && <span className="text-slate-300">→</span>}
-              <button onClick={() => { setCurrentNode(p); setPath(path.slice(0, i + 1)); }} className={`px-2 py-0.5 rounded ${p === currentNode ? "bg-blue-100 text-blue-700 font-medium" : "text-slate-400 hover:text-slate-600"}`}>
+              <button onClick={() => { setCurrentNode(p); setPath(path.slice(0, i + 1)); }} className={`px-2 py-0.5 rounded ${p === currentNode ? "bg-blue-100 text-blue-700 font-medium" : "text-slate-400 hover:text-secondary"}`}>
                 {TREE[p]?.id || "start"}
               </button>
             </span>
@@ -128,7 +128,7 @@ export default function AuthBypassTreeTool() {
           <div className={`p-4 rounded-lg border ${result.color}`}>
             <p className="text-sm font-semibold">{result.label}</p>
             <p className="text-xs mt-1">{result.text}</p>
-            <button onClick={() => { setCurrentNode("start"); setPath(["start"]); }} className="mt-3 px-3 py-1.5 bg-slate-100 text-slate-600 rounded text-xs hover:bg-slate-200">Restart</button>
+            <button onClick={() => { setCurrentNode("start"); setPath(["start"]); }} className="mt-3 px-3 py-1.5 bg-elevated text-secondary rounded text-xs hover:bg-strong">Restart</button>
           </div>
         )}
       </div>

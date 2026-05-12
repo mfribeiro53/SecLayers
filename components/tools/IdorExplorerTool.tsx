@@ -79,10 +79,10 @@ export default function IdorExplorerTool() {
       <div className="space-y-5">
         {/* Role selector */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
+          <label className="block text-sm font-medium text-secondary mb-1">
             Your Role
           </label>
-          <div className="flex flex-wrap gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+          <div className="flex flex-wrap gap-1 bg-elevated p-1 rounded-lg w-fit">
             {(["alice", "bob", "admin", "anonymous"] as Role[]).map((r) => (
               <button
                 key={r}
@@ -92,8 +92,8 @@ export default function IdorExplorerTool() {
                 }}
                 className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors capitalize ${
                   role === r
-                    ? "bg-white text-slate-800 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-surface-2 text-secondary shadow-sm"
+                    : "text-slate-500 hover:text-secondary"
                 }`}
               >
                 {r}
@@ -103,8 +103,8 @@ export default function IdorExplorerTool() {
         </div>
 
         {/* Records reference */}
-        <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs">
-          <p className="font-medium text-slate-700 mb-1">Known Record IDs:</p>
+        <div className="p-3 rounded-lg bg-surface-2 border border-subtle text-xs">
+          <p className="font-medium text-secondary mb-1">Known Record IDs:</p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
             {DATABASE.map((r) => (
               <button
@@ -113,8 +113,8 @@ export default function IdorExplorerTool() {
                   setRecordId(String(r.id));
                   setResult(null);
                 }}
-                className={`text-left px-2 py-1 rounded hover:bg-slate-200 transition-colors ${
-                  String(r.id) === recordId ? "bg-blue-100 text-blue-800" : "text-slate-600"
+                className={`text-left px-2 py-1 rounded hover:bg-strong transition-colors ${
+                  String(r.id) === recordId ? "bg-blue-100 text-blue-800" : "text-secondary"
                 }`}
               >
                 <span className="font-mono">{r.id}</span>{" "}
@@ -127,7 +127,7 @@ export default function IdorExplorerTool() {
         {/* Request */}
         <div className="flex items-end gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">
+            <label className="block text-xs font-medium text-secondary mb-1">
               Record ID
             </label>
             <input
@@ -137,7 +137,7 @@ export default function IdorExplorerTool() {
                 setRecordId(e.target.value);
                 setResult(null);
               }}
-              className="w-32 px-3 py-2 border border-slate-300 rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-32 px-3 py-2 border border-subtle rounded-md font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <button
@@ -157,9 +157,9 @@ export default function IdorExplorerTool() {
               setHasAuthCheck(e.target.checked);
               setResult(null);
             }}
-            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            className="rounded border-subtle text-blue-600 focus:ring-blue-500"
           />
-          <span className="text-sm text-slate-700">
+          <span className="text-sm text-secondary">
             Enable Ownership Check (server verifies record belongs to your role)
           </span>
         </label>
@@ -172,24 +172,24 @@ export default function IdorExplorerTool() {
                 ? "bg-red-50 border-red-200"
                 : result.record
                 ? "bg-emerald-50 border-emerald-200"
-                : "bg-slate-50 border-slate-200"
+                : "bg-surface-2 border-subtle"
             }`}
           >
             {result.record ? (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-slate-800">
+                  <p className="text-sm font-semibold text-secondary">
                     {result.record.type}
                   </p>
                   <span className="text-xs text-slate-400">ID: {result.record.id}</span>
                 </div>
-                <p className="text-sm text-slate-700">{result.record.data}</p>
+                <p className="text-sm text-secondary">{result.record.data}</p>
                 <p className="text-xs text-slate-400 mt-2">
                   Owner: {result.record.owner}
                 </p>
               </div>
             ) : (
-              <p className="text-sm text-slate-600">{result.message}</p>
+              <p className="text-sm text-secondary">{result.message}</p>
             )}
             <p
               className={`text-xs mt-2 pt-2 border-t ${
@@ -197,7 +197,7 @@ export default function IdorExplorerTool() {
                   ? "border-red-100 text-red-600"
                   : result.record
                   ? "border-emerald-100 text-emerald-600"
-                  : "border-slate-100 text-slate-500"
+                  : "border-subtle text-slate-500"
               }`}
             >
               {result.message}

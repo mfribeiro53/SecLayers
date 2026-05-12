@@ -126,16 +126,16 @@ export default function DefensiveCodeLabTool() {
             <button
               key={s.id}
               onClick={() => { setCurrentSnippet(i); setShowFix(false); }}
-              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${i === currentSnippet ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+              className={`px-3 py-1.5 text-xs rounded-md font-medium transition-colors ${i === currentSnippet ? "bg-slate-800 text-white" : "bg-elevated text-secondary hover:bg-strong"}`}
             >
               {s.title}
             </button>
           ))}
         </div>
 
-        <div className="p-4 rounded-lg border border-slate-200 bg-white">
+        <div className="p-4 rounded-lg border border-subtle bg-surface-2">
           <div className="flex justify-between items-center mb-2">
-            <p className="text-sm font-semibold text-slate-800">{snippet.title}</p>
+            <p className="text-sm font-semibold text-secondary">{snippet.title}</p>
             <span className="px-2 py-0.5 text-xs rounded bg-red-100 text-red-700 font-medium">{snippet.vulnerability}</span>
           </div>
 
@@ -150,14 +150,14 @@ export default function DefensiveCodeLabTool() {
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-slate-100">
+          <div className="mt-3 pt-3 border-t border-subtle">
             <p className="text-xs text-slate-500">{snippet.explanation}</p>
           </div>
         </div>
 
         <div className="flex gap-3">
-          <button onClick={() => setCurrentSnippet(Math.max(0, currentSnippet - 1))} disabled={currentSnippet === 0} className="px-3 py-1.5 text-xs rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40">← Previous</button>
-          <button onClick={() => setCurrentSnippet(Math.min(SNIPPETS.length - 1, currentSnippet + 1))} disabled={currentSnippet === SNIPPETS.length - 1} className="px-3 py-1.5 text-xs rounded bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40">Next →</button>
+          <button onClick={() => setCurrentSnippet(Math.max(0, currentSnippet - 1))} disabled={currentSnippet === 0} className="px-3 py-1.5 text-xs rounded bg-elevated text-secondary hover:bg-strong disabled:opacity-40">← Previous</button>
+          <button onClick={() => setCurrentSnippet(Math.min(SNIPPETS.length - 1, currentSnippet + 1))} disabled={currentSnippet === SNIPPETS.length - 1} className="px-3 py-1.5 text-xs rounded bg-elevated text-secondary hover:bg-strong disabled:opacity-40">Next →</button>
         </div>
       </div>
     </ToolShell>

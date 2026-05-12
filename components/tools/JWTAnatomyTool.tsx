@@ -56,8 +56,8 @@ export default function JWTAnatomyTool() {
         <div className="grid grid-cols-2 gap-2">
           {[{ label: "Subject", val: sub, set: setSub }, { label: "Name", val: name, set: setName }, { label: "Role", val: role, set: setRole }, { label: "Secret", val: secret, set: setSecret }].map((f) => (
             <div key={f.label}>
-              <label className="block text-xs text-slate-600 mb-0.5">{f.label}</label>
-              <input value={f.val} onChange={(e) => f.set(e.target.value)} className="w-full px-2 py-1.5 border border-slate-300 rounded text-xs font-mono" />
+              <label className="block text-xs text-secondary mb-0.5">{f.label}</label>
+              <input value={f.val} onChange={(e) => f.set(e.target.value)} className="w-full px-2 py-1.5 border border-subtle rounded text-xs font-mono" />
             </div>
           ))}
         </div>

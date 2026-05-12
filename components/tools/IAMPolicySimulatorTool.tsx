@@ -68,30 +68,30 @@ export default function IAMPolicySimulatorTool() {
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Policy</label>
-            <select value={policyId} onChange={e => { setPolicyId(e.target.value); setResult(null); }} className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 bg-white">
+            <label className="block text-xs font-medium text-secondary mb-1">Policy</label>
+            <select value={policyId} onChange={e => { setPolicyId(e.target.value); setResult(null); }} className="w-full text-xs border border-subtle rounded px-2 py-1.5 bg-surface-2">
               {POLICIES.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Request</label>
-            <select value={reqIdx} onChange={e => { setReqIdx(+e.target.value); setResult(null); }} className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 bg-white">
+            <label className="block text-xs font-medium text-secondary mb-1">Request</label>
+            <select value={reqIdx} onChange={e => { setReqIdx(+e.target.value); setResult(null); }} className="w-full text-xs border border-subtle rounded px-2 py-1.5 bg-surface-2">
               {REQUESTS.map((r, i) => <option key={i} value={i}>{r.action}</option>)}
             </select>
           </div>
         </div>
 
-        <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1 font-mono">
+        <div className="p-3 bg-surface-2 rounded border border-subtle text-xs space-y-1 font-mono">
           <div><span className="text-slate-500">action:   </span><span className="text-blue-700">{req.action}</span></div>
           <div><span className="text-slate-500">resource: </span><span className="text-blue-700">{req.resource}</span></div>
         </div>
 
-        <div className="p-3 bg-slate-50 rounded border border-slate-200 text-xs space-y-1">
-          <p className="font-medium text-slate-700 mb-2">Policy statements ({policy.name}):</p>
+        <div className="p-3 bg-surface-2 rounded border border-subtle text-xs space-y-1">
+          <p className="font-medium text-secondary mb-2">Policy statements ({policy.name}):</p>
           {policy.statements.map((s, i) => (
             <div key={i} className={`flex gap-2 items-start px-2 py-1 rounded ${s.effect === "Allow" ? "bg-emerald-50 border border-emerald-200" : "bg-red-50 border border-red-200"}`}>
               <span className={`font-bold text-xs w-10 shrink-0 ${s.effect === "Allow" ? "text-emerald-700" : "text-red-700"}`}>{s.effect}</span>
-              <span className="text-slate-600">{s.actions.join(", ")} on {s.resources.join(", ")}</span>
+              <span className="text-secondary">{s.actions.join(", ")} on {s.resources.join(", ")}</span>
             </div>
           ))}
         </div>

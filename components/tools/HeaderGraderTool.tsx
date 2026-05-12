@@ -133,15 +133,15 @@ export default function HeaderGraderTool() {
           <button onClick={() => setHeaders(SAMPLE_GOOD)} className="px-2 py-1 text-xs rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200">Load Good</button>
           <button onClick={() => setHeaders(SAMPLE_BAD)} className="px-2 py-1 text-xs rounded bg-red-100 text-red-700 hover:bg-red-200">Load Bad</button>
         </div>
-        <textarea value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Paste HTTP response headers..." className="w-full h-32 px-3 py-2 border border-slate-300 rounded-md font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <textarea value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Paste HTTP response headers..." className="w-full h-32 px-3 py-2 border border-subtle rounded-md font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500" />
         <button onClick={() => setResults(gradeHeaders(headers))} className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700">Grade Headers</button>
         {results && (
           <div className="space-y-2">
             {results.map((r, i) => (
-              <div key={i} className={`p-3 rounded-lg border ${r.header.includes("Overall") ? "bg-slate-800 text-white border-slate-700" : "bg-white border-slate-200"}`}>
+              <div key={i} className={`p-3 rounded-lg border ${r.header.includes("Overall") ? "bg-slate-800 text-white border-slate-700" : "bg-surface-2 border-subtle"}`}>
                 <div className="flex justify-between items-start gap-2">
-                  <p className="text-sm font-medium text-slate-700">{r.header}</p>
-                  <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${r.header.includes("Overall") ? "bg-white text-slate-800" : GRADE_COLORS[r.grade]}`}>{r.value.length > 60 ? r.grade : r.value}</span>
+                  <p className="text-sm font-medium text-secondary">{r.header}</p>
+                  <span className={`px-2 py-0.5 text-xs rounded-full font-bold ${r.header.includes("Overall") ? "bg-surface-2 text-secondary" : GRADE_COLORS[r.grade]}`}>{r.value.length > 60 ? r.grade : r.value}</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">{r.note}</p>
               </div>

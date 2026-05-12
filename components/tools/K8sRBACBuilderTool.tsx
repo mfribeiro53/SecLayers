@@ -68,8 +68,8 @@ export default function K8sRBACBuilderTool() {
     <ToolShell title="Kubernetes RBAC Simulator" description="Select a role and check what actions it allows.">
       <div className="space-y-4">
         <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">Role</label>
-          <select value={roleIdx} onChange={e => setRoleIdx(+e.target.value)} className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 bg-white">
+          <label className="block text-xs font-medium text-secondary mb-1">Role</label>
+          <select value={roleIdx} onChange={e => setRoleIdx(+e.target.value)} className="w-full text-xs border border-subtle rounded px-2 py-1.5 bg-surface-2">
             {ROLES.map((r, i) => <option key={i} value={i}>{r.name}</option>)}
           </select>
         </div>
@@ -93,12 +93,12 @@ export default function K8sRBACBuilderTool() {
         )}
 
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-slate-600">Permission checks:</p>
+          <p className="text-xs font-medium text-secondary">Permission checks:</p>
           {CHECKS.map((c, i) => {
             const allowed = canDo(role.name, c.verb, c.resource);
             return (
-              <div key={i} className={`flex items-center justify-between px-3 py-1.5 rounded text-xs border ${allowed ? "bg-emerald-50 border-emerald-200" : "bg-slate-50 border-slate-200"}`}>
-                <span className="text-slate-700">{c.label}</span>
+              <div key={i} className={`flex items-center justify-between px-3 py-1.5 rounded text-xs border ${allowed ? "bg-emerald-50 border-emerald-200" : "bg-surface-2 border-subtle"}`}>
+                <span className="text-secondary">{c.label}</span>
                 <span className={`font-bold ${allowed ? "text-emerald-700" : "text-slate-400"}`}>{allowed ? "ALLOW" : "DENY"}</span>
               </div>
             );

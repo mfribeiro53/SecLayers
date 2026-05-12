@@ -69,12 +69,12 @@ export default function BucketACLTool() {
 
         <div className="space-y-2">
           {controls.map(c => (
-            <div key={c.key} className="flex items-start gap-3 p-2 rounded border border-slate-100">
-              <button onClick={() => toggle(c.key)} className={`mt-0.5 w-8 h-4 rounded-full relative transition-colors shrink-0 ${cfg[c.key] ? "bg-emerald-500" : "bg-slate-300"}`}>
-                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${cfg[c.key] ? "left-4" : "left-0.5"}`} />
+            <div key={c.key} className="flex items-start gap-3 p-2 rounded border border-subtle">
+              <button onClick={() => toggle(c.key)} className={`mt-0.5 w-8 h-4 rounded-full relative transition-colors shrink-0 ${cfg[c.key] ? "bg-emerald-500" : "bg-strong"}`}>
+                <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-surface-2 transition-all ${cfg[c.key] ? "left-4" : "left-0.5"}`} />
               </button>
               <div>
-                <p className="text-xs font-medium text-slate-700">{c.label}</p>
+                <p className="text-xs font-medium text-secondary">{c.label}</p>
                 <p className="text-xs text-slate-400">{c.desc}</p>
               </div>
             </div>
@@ -82,7 +82,7 @@ export default function BucketACLTool() {
         </div>
 
         <div className="space-y-1.5">
-          <p className="text-xs font-medium text-slate-700">Findings:</p>
+          <p className="text-xs font-medium text-secondary">Findings:</p>
           {findings.map((f, i) => (
             <div key={i} className={`text-xs px-2 py-1.5 rounded border ${severityColor[f.severity]}`}>
               <span className="font-medium uppercase text-[10px]">{f.severity}</span> — {f.text}

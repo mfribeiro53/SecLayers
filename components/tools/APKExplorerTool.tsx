@@ -37,7 +37,7 @@ export default function APKExplorerTool() {
     <ToolShell title="APK Structure Explorer" description="Explore the structure of an Android APK. See what reversible engineering reveals about app security.">
       <div className="space-y-4">
         {/* APK tree */}
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
+        <div className="border border-subtle rounded-lg overflow-hidden">
           <div className="px-4 py-3 bg-slate-800 text-white text-sm font-mono">
             📦 app-release.apk
           </div>
@@ -45,20 +45,20 @@ export default function APKExplorerTool() {
             <button
               key={comp.name}
               onClick={() => setSelected(comp)}
-              className={`w-full text-left px-4 py-2.5 flex items-center gap-2 border-b border-slate-100 hover:bg-slate-50 transition-colors text-sm ${
+              className={`w-full text-left px-4 py-2.5 flex items-center gap-2 border-b border-subtle hover:bg-surface-2 transition-colors text-sm ${
                 selected.name === comp.name ? "bg-blue-50 border-l-2 border-l-blue-500" : ""
               }`}
             >
               <span>📄</span>
-              <span className="text-slate-700 font-mono text-xs">{comp.name}</span>
+              <span className="text-secondary font-mono text-xs">{comp.name}</span>
             </button>
           ))}
         </div>
 
         {/* Component detail */}
-        <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
-          <p className="text-sm font-semibold text-slate-800">{selected.name}</p>
-          <p className="text-xs text-slate-600 mt-1">{selected.description}</p>
+        <div className="p-4 rounded-lg border border-subtle bg-surface-2">
+          <p className="text-sm font-semibold text-secondary">{selected.name}</p>
+          <p className="text-xs text-secondary mt-1">{selected.description}</p>
           {selected.riskNote && (
             <div className="mt-2 p-2 rounded bg-amber-50 border border-amber-200 text-xs text-amber-800">
               ⚠️ {selected.riskNote}

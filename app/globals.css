@@ -226,40 +226,10 @@ body {
 }
 
 /* ─── Tool dark-mode remap ───────────────────────────────────
-   Tools were authored with light-mode Tailwind classes. Rather
-   than rewrite 18 files, we remap the common ones inside the
-   ToolShell scope so they read against the dark background. */
-
-.tool-surface .bg-white,
-.tool-surface .bg-slate-50,
-.tool-surface .bg-slate-50\/50,
-.tool-surface .bg-slate-50\/30 {
-  background-color: var(--bg-surface-2) !important;
-}
-.tool-surface .bg-slate-100 {
-  background-color: var(--bg-elevated) !important;
-}
-.tool-surface .bg-slate-200 {
-  background-color: var(--border-strong) !important;
-}
-.tool-surface .bg-slate-800,
-.tool-surface .bg-slate-900 {
-  background-color: #0a0d18 !important;
-}
-
-.tool-surface .text-slate-400 { color: var(--text-muted) !important; }
-.tool-surface .text-slate-500 { color: var(--text-muted) !important; }
-.tool-surface .text-slate-600,
-.tool-surface .text-slate-700,
-.tool-surface .text-slate-800 { color: var(--text-secondary) !important; }
-.tool-surface .text-slate-900 { color: var(--text-primary) !important; }
-.tool-surface .text-white { color: white !important; }
-
-.tool-surface .border-slate-100,
-.tool-surface .border-slate-200,
-.tool-surface .border-slate-300 {
-  border-color: var(--border-subtle) !important;
-}
+   Surface/text/border slate classes have been replaced in components
+   with the semantic tokens above (surface-2, elevated, primary, etc.).
+   Remaining overrides handle colored tint blocks and interactive elements
+   that still reference light-mode Tailwind color classes. */
 
 /* Tinted callout blocks inside tools — keep tint, soften */
 .tool-surface .bg-red-50 { background-color: rgba(248,113,113,0.10) !important; }

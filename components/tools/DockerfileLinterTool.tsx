@@ -94,12 +94,12 @@ export default function DockerfileLinterTool() {
         <textarea
           value={source}
           onChange={e => setSource(e.target.value)}
-          className="w-full h-48 font-mono text-xs p-3 border border-slate-200 rounded bg-slate-50 resize-none"
+          className="w-full h-48 font-mono text-xs p-3 border border-subtle rounded bg-surface-2 resize-none"
           spellCheck={false}
         />
 
         <div className="space-y-2">
-          <p className="text-xs font-medium text-slate-600">{findings.length} finding{findings.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs font-medium text-secondary">{findings.length} finding{findings.length !== 1 ? "s" : ""}</p>
           {findings.length === 0 && <p className="text-xs text-emerald-600 bg-emerald-50 p-2 rounded">No issues found.</p>}
           {findings.map((f, i) => (
             <div key={i} className={`border-l-4 pl-3 py-1.5 rounded-r text-xs ${severityColor[f.severity]}`}>
@@ -108,7 +108,7 @@ export default function DockerfileLinterTool() {
                 <span className="font-mono text-slate-500">{f.rule}</span>
                 {f.line && <span className="text-slate-400">line {f.line}</span>}
               </div>
-              <p className="text-slate-700 mt-0.5">{f.detail}</p>
+              <p className="text-secondary mt-0.5">{f.detail}</p>
             </div>
           ))}
         </div>

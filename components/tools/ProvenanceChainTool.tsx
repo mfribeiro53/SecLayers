@@ -45,7 +45,7 @@ export default function ProvenanceChainTool() {
         <div className="flex gap-1.5">
           {CHAINS.map((c, i) => (
             <button key={c.id} onClick={() => { setChainIdx(i); setHoveredStep(null); }}
-              className={`px-3 py-1 text-xs rounded border transition-colors ${chainIdx === i ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-600 border-slate-200 hover:border-slate-400"}`}>
+              className={`px-3 py-1 text-xs rounded border transition-colors ${chainIdx === i ? "bg-slate-800 text-white border-slate-800" : "bg-surface-2 text-secondary border-subtle hover:border-slate-400"}`}>
               {c.label}
             </button>
           ))}
@@ -85,8 +85,8 @@ export default function ProvenanceChainTool() {
           const step = chain.steps.find(s => s.id === hoveredStep)!;
           return (
             <div className={`p-3 border rounded text-xs space-y-1.5 ${step.signed ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
-              <p className="font-semibold text-slate-800">{step.label}</p>
-              <p className={step.signed ? "text-slate-600" : "text-red-700"}>{step.description}</p>
+              <p className="font-semibold text-secondary">{step.label}</p>
+              <p className={step.signed ? "text-secondary" : "text-red-700"}>{step.description}</p>
               {step.signed && step.verifiedBy && (
                 <p className="text-emerald-700"><span className="font-medium">Verified by:</span> {step.verifiedBy}</p>
               )}
