@@ -1,0 +1,195 @@
+# Biometric & Credential Security
+
+Mobile apps increasingly use biometrics — fingerprint, face recognition — to authenticate users. Done correctly, biometrics unlock cryptographic keys stored in hardware-backed secure storage, giving a strong, phishing-resistant, user-friendly factor. Done incorrectly, biometric authentication becomes a UI-only check: the app shows a fingerprint prompt, gets a boolean back, and trusts it without any cryptographic binding. An attacker who patches the app or hooks the biometric API gets `true` without touching the sensor.
+
+<Callout kind="insight">
+**A biometric result is not a credential — a cryptographic key operation is.** The secure pattern is: bind the authentication result to a key operation in the Secure Enclave / TEE. If the key operation succeeds, authentication succeeds. If the biometric API returns `true` but no hardware key was used, the authentication is trivially bypassable.
+</Callout>
+
+---
+
+## How Biometric Authentication Should Work
+
+The correct flow binds biometric success to a hardware key:
+
+```
+1. App generates a key in Keystore/Secure Enclave, marked "requires biometric auth"
+2. User presents biometric
+3. OS verifies biometric in isolated hardware (TEE/Secure Enclave)
+4. If OK, OS unlocks the key — now available to the app for one operation
+5. App uses the key to sign a challenge or decrypt a token
+6. Backend verifies the signature — authentication complete
+```
+
+The key **never leaves the hardware**. The biometric result **never reaches app code** — only the derived key operation does. An attacker who patches the app's Java/Swift code gets nothing — the key is inside hardware they can't touch.
+
+---
+
+## Vulnerable Pattern: Boolean-Based Authentication
+
+The most common mistake — trusting the callback result directly:
+
+```kotlin
+// VULNERABLE — Android, BiometricPrompt with no crypto
+val biometricPrompt = BiometricPrompt(this, executor,
+    object : BiometricPrompt.AuthenticationCallback() {
+        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+            super.onAuthenticationSucceeded(result)
+            // App logs user in based on boolean success
+            loginUser()  // no cryptographic binding
+        }
+    }
+)
+biometricPrompt.authenticate(promptInfo)
+```
+
+An attacker using Frida can hook `onAuthenticationSucceeded` to trigger it without presenting a valid biometric, or hook `loginUser` directly. The biometric prompt is a UI decoration with no security value.
+
+---
+
+## Secure Pattern: Crypto-Bound Biometrics
+
+### Android — BiometricPrompt with CryptoObject
+
+```kotlin
+// 1. Generate a key tied to biometric authentication
+val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+keyGenerator.init(
+    KeyGenParameterSpec.Builder("biometric_key",
+        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+        .setUserAuthenticationRequired(true)
+        .setInvalidatedByBiometricEnrollment(true)  // invalidate if new fingerprint enrolled
+        .build()
+)
+keyGenerator.generateKey()
+
+// 2. Create a Cipher, wrap in CryptoObject
+val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+val key = keyStore.getKey("biometric_key", null) as SecretKey
+val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+cipher.init(Cipher.ENCRYPT_MODE, key)
+val cryptoObject = BiometricPrompt.CryptoObject(cipher)
+
+// 3. Authenticate — cipher only usable after real biometric
+biometricPrompt.authenticate(promptInfo, cryptoObject)
+
+// 4. In onAuthenticationSucceeded, use the unlocked cipher
+override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+    val cipher = result.cryptoObject?.cipher ?: return
+    val encrypted = cipher.doFinal(tokenBytes)
+    // send encrypted token to backend for verification
+}
+```
+
+`setInvalidatedByBiometricEnrollment(true)` ensures that if the attacker enrolls a new fingerprint on the device, the existing key is destroyed — preventing enrollment of an attacker fingerprint to bypass the check.
+
+### iOS — Secure Enclave with LAContext
+
+```swift
+// 1. Generate key pair in Secure Enclave
+let accessControl = SecAccessControlCreateWithFlags(
+    nil,
+    kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+    [.privateKeyUsage, .biometryCurrentSet],  // .biometryCurrentSet invalidates on new enrollment
+    nil
+)!
+
+let attributes: [String: Any] = [
+    kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+    kSecAttrKeySizeInBits as String: 256,
+    kSecAttrTokenID as String: kSecAttrTokenIDSecureEnclave,
+    kSecPrivateKeyAttrs as String: [
+        kSecAttrIsPermanent as String: true,
+        kSecAttrAccessControl as String: accessControl
+    ]
+]
+SecKeyCreateRandomKey(attributes as CFDictionary, nil)
+
+// 2. Sign a challenge — OS presents biometric prompt automatically
+// Private key operation requires biometric; public key verification needs no auth
+let signature = SecKeyCreateSignature(privateKey, .ecdsaSignatureMessageX962SHA256, challengeData as CFData, nil)
+// Send challenge + signature to backend for verification
+```
+
+`.biometryCurrentSet` ensures the key is invalidated if a new biometric is enrolled — the iOS equivalent of `setInvalidatedByBiometricEnrollment`.
+
+---
+
+## Credential Storage Mistakes
+
+### Storing Passwords Instead of Tokens
+
+Apps sometimes store the user's actual password to re-authenticate silently. This is unnecessary and dangerous:
+
+```kotlin
+// VULNERABLE — never store the user's password
+val prefs = getSharedPreferences("creds", MODE_PRIVATE)
+prefs.edit().putString("password", userPassword).apply()
+```
+
+Instead, after initial authentication, the server should issue a long-lived refresh token (stored in Keystore/Keychain). Re-authentication exchanges the refresh token for a new access token — no password re-entry or storage required.
+
+### Weak PIN Storage
+
+Apps that implement their own PIN authentication often make storage mistakes:
+
+```kotlin
+// VULNERABLE — MD5 of PIN, trivially reversible (only 10,000 possibilities)
+val hash = MessageDigest.getInstance("MD5").digest(pin.toByteArray())
+val stored = prefs.getString("pin_hash", "")
+if (Base64.encode(hash) == stored) { /* auth success */ }
+```
+
+A 4-digit PIN has only 10,000 values — brute force takes milliseconds. Use PBKDF2, bcrypt, or Argon2 with a per-user salt, or avoid PIN storage entirely by binding to biometric.
+
+---
+
+## Downgrade Attacks
+
+Biometric APIs allow fallback to device PIN/password. If the app doesn't control what fallback is allowed, a lower-strength authenticator grants the same access:
+
+```kotlin
+// Allows fallback to device credential — may be acceptable
+val promptInfo = BiometricPrompt.PromptInfo.Builder()
+    .setAllowedAuthenticators(
+        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+        BiometricManager.Authenticators.DEVICE_CREDENTIAL
+    )
+    .build()
+```
+
+Use `BIOMETRIC_STRONG` without `DEVICE_CREDENTIAL` for high-value operations (payment authorization). Use `BIOMETRIC_WEAK or DEVICE_CREDENTIAL` for convenience operations (unlock view).
+
+`BIOMETRIC_STRONG` requires hardware-backed biometric (fingerprint, face with IR sensor). `BIOMETRIC_WEAK` includes face unlock from RGB camera — less secure.
+
+---
+
+## Face ID / Face Unlock Differences
+
+| | iOS Face ID | Android Face Unlock |
+|--|-------------|---------------------|
+| **Hardware** | Structured light IR + dot projector (TrueDepth) | Usually RGB camera only |
+| **Security** | 1 in 1,000,000 false accept rate | 1 in 50,000 (BIOMETRIC_WEAK class) |
+| **Secure hardware** | Secure Enclave | TEE (varies by SoC) |
+| **BiometricPrompt class** | `BIOMETRIC_STRONG` | Often `BIOMETRIC_WEAK` — check device |
+| **Defeat by photo** | Very hard | Possible on many devices |
+
+For payment flows on Android, check `BiometricManager.canAuthenticate(BIOMETRIC_STRONG)` before offering face unlock — reject `BIOMETRIC_WEAK` for high-value operations.
+
+---
+
+## Real-World Examples
+
+**Banking apps (widespread, 2018–2020)** — Researchers from the University of Birmingham analyzed 70 banking apps and found that the majority implemented biometrics as a boolean check rather than a crypto-bound operation. Frida scripts to bypass the check were published and worked against major UK and US banking apps.
+
+**Samsung Pass (2021)** — A researcher demonstrated that Samsung's credential manager could be bypassed on certain devices by manipulating the biometric callback flow without presenting a valid fingerprint, due to insufficient validation of the `CryptoObject` chain.
+
+---
+
+## Misconception
+
+**Myth:** "We show a biometric prompt, so our authentication is secure."
+
+**Reality:** A biometric prompt with no cryptographic binding is equivalent to an `AlertDialog` that asks "Are you the owner?" and trusts the response. Any attacker with Frida or a patched APK can call the success callback directly. Security comes from binding the authentication event to a hardware key operation — not from the presence of the biometric UI.

@@ -1,0 +1,224 @@
+# Insecure Communication
+
+Mobile apps communicate with backends over HTTP/TLS. Done correctly, TLS provides confidentiality, integrity, and server authentication. Done wrong — disabled certificate validation, pinning bypass, cleartext HTTP — a network attacker positioned between the device and server reads and modifies every byte exchanged. On mobile, this matters more than on the desktop: apps run on untrusted Wi-Fi, travel through carrier networks, and users are accustomed to accepting Wi-Fi portals.
+
+<Callout kind="insight">
+**The most dangerous TLS mistake isn't forgetting encryption — it's disabling validation.** A developer who sees an SSL error in testing and adds `trustAllCerts` or `setHostnameVerifier(ALLOW_ALL)` has silently removed all authentication guarantees. The traffic is still encrypted, but encrypted to whoever answers — including an active man-in-the-middle attacker.
+</Callout>
+
+---
+
+## The Threat: Man-in-the-Middle (MitM)
+
+An attacker on the same network as the victim (rogue Wi-Fi, ARP poisoning, compromised router) can intercept all traffic. TLS prevents this — if implemented correctly.
+
+```
+[App] ────TLS────► [Legitimate Server]    ✓ secure
+
+[App] ────TLS────► [Attacker Proxy] ────► [Legitimate Server]
+                         ↑
+                  MitM sees plaintext
+                  (only possible if cert validation is broken)
+```
+
+The attacker presents their own certificate. The app must validate:
+1. The certificate is signed by a trusted CA
+2. The hostname in the certificate matches the server being contacted
+3. The certificate is not expired or revoked
+
+Skipping any of these three checks breaks the authentication guarantee of TLS.
+
+---
+
+## Common Vulnerabilities
+
+### 1. Trust All Certificates (Android)
+
+The single most common vulnerability in Android apps:
+
+```java
+// VULNERABLE — accepts any certificate, including attacker-controlled ones
+TrustManager[] trustAllCerts = new TrustManager[]{
+    new X509TrustManager() {
+        public void checkClientTrusted(X509Certificate[] chain, String authType) {}
+        public void checkServerTrusted(X509Certificate[] chain, String authType) {}
+        public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[]{}; }
+    }
+};
+
+SSLContext sc = SSLContext.getInstance("SSL");
+sc.init(null, trustAllCerts, new java.security.SecureRandom());
+HttpsURLConnection.setDefaultSSLSocketFactory(sc.getSocketFactory());
+```
+
+Both `checkClientTrusted` and `checkServerTrusted` are empty — they throw no exceptions for any certificate. An attacker intercepts traffic with a self-signed certificate and the app connects happily.
+
+### 2. Hostname Verifier Bypass (Android)
+
+Even with a valid certificate, the hostname must match:
+
+```java
+// VULNERABLE — accepts any hostname
+connection.setHostnameVerifier(new HostnameVerifier() {
+    @Override
+    public boolean verify(String hostname, SSLSession session) {
+        return true;  // always returns true
+    }
+});
+```
+
+An attacker with a certificate for `evil.com` can now MitM traffic to `api.example.com`.
+
+### 3. Cleartext HTTP
+
+Android apps targeting API level < 28 allow HTTP by default. An app that sends authentication tokens over plain HTTP exposes them to any passive network observer.
+
+```xml
+<!-- AndroidManifest.xml — VULNERABLE -->
+<application android:usesCleartextTraffic="true">
+```
+
+From Android 9 (API 28), cleartext is blocked by default. Never re-enable it for production endpoints.
+
+### 4. Ignoring SSL Errors in WebViews
+
+`WebView` has its own certificate validation callback:
+
+```java
+// VULNERABLE — ignores SSL errors in WebView
+webView.setWebViewClient(new WebViewClient() {
+    @Override
+    public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
+        handler.proceed();  // ignore all SSL errors
+    }
+});
+```
+
+`handler.proceed()` in `onReceivedSslError` is one of Google Play's most common rejection reasons.
+
+---
+
+## Certificate Pinning
+
+Certificate pinning restricts which certificates the app will accept — not just any CA-signed cert, but a specific certificate or public key. It defends against:
+- Compromised CAs (DigiNotar, WoSign incidents)
+- Rogue enterprise CAs installed by MDM
+- Government-mandated CA roots
+
+### Pin the Public Key Hash (Recommended)
+
+Pinning the public key hash (SPKI) rather than the full certificate survives certificate renewal as long as the key pair is reused.
+
+**OkHttp (Android):**
+```kotlin
+val client = OkHttpClient.Builder()
+    .certificatePinner(
+        CertificatePinner.Builder()
+            .add("api.example.com", "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
+            .add("api.example.com", "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=") // backup pin
+            .build()
+    )
+    .build()
+```
+
+Always include a backup pin — at minimum, pin the intermediate CA's public key so you can rotate the leaf certificate without an app update.
+
+**iOS (URLSession / NSURLSession):**
+```swift
+func urlSession(_ session: URLSession,
+                didReceive challenge: URLAuthenticationChallenge,
+                completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+    guard let serverCert = challenge.protectionSpace.serverTrust,
+          let cert = SecTrustGetCertificateAtIndex(serverCert, 0) else {
+        completionHandler(.cancelAuthenticationChallenge, nil)
+        return
+    }
+    let serverPublicKeyData = publicKeyData(from: cert)
+    if pinnedPublicKeys.contains(serverPublicKeyData) {
+        completionHandler(.useCredential, URLCredential(trust: serverCert))
+    } else {
+        completionHandler(.cancelAuthenticationChallenge, nil)
+    }
+}
+```
+
+### Android Network Security Configuration
+
+Android 7+ lets you configure pinning in XML without code changes — easier to audit:
+
+```xml
+<!-- res/xml/network_security_config.xml -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.example.com</domain>
+        <pin-set expiration="2026-01-01">
+            <pin digest="SHA-256">AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=</pin>
+            <pin digest="SHA-256">BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>
+```
+
+Reference it in the manifest:
+```xml
+<application android:networkSecurityConfig="@xml/network_security_config">
+```
+
+---
+
+## Pinning Pitfalls
+
+| Problem | Consequence |
+|---------|-------------|
+| Pinning only the leaf certificate | App breaks on cert renewal unless you ship an update |
+| No backup pin | Rotation requires an emergency app release |
+| No expiration handling | Pin expires silently; requests fail in production |
+| Pinning in debug but not release | Protection only in dev builds — bypass trivial in production |
+
+---
+
+## Testing for Insecure Communication
+
+**Proxy-based testing:**
+1. Set up Burp Suite or mitmproxy as an HTTP proxy
+2. Install the proxy's CA certificate on the test device
+3. Route device traffic through the proxy
+4. If requests appear in Burp, TLS validation is broken or pinning is absent
+
+**Certificate pinning bypass:**
+- Frida with `ssl-kill-switch2` or `objection` (iOS)
+- `apk-mitm` for automated APK patching (Android)
+- Xposed Framework + JustTrustMe module
+
+If an app uses pinning, the proxy's cert won't be trusted even if installed as a system CA. You'll need a dynamic instrumentation framework to bypass it.
+
+---
+
+## Real-World Examples
+
+**PayID apps (2019)** — Multiple Australian banking apps were found to disable certificate validation in their Android WebView components, allowing MitM on the login flow.
+
+**PreInstalled Android Apps (2020, CyberNews research)** — Several pre-installed apps on budget Android devices sent IMEI, location, and contact data over plain HTTP. OEM supply chain injection with no TLS.
+
+**Banking apps globally (recurring)** — Appthority's 2018 analysis found 22.5% of top-500 financial apps on Android had broken certificate validation. The pattern: a developer added `trustAllCerts` during staging, forgot to revert before shipping.
+
+---
+
+## Defenses Summary
+
+| Vulnerability | Fix |
+|---------------|-----|
+| `trustAllCerts` | Remove completely; use the default `TrustManager` |
+| `HostnameVerifier` bypass | Remove override; use `HttpsURLConnection.getDefaultHostnameVerifier()` |
+| `onReceivedSslError` proceed | Cancel the challenge; never call `handler.proceed()` |
+| Cleartext HTTP | `android:usesCleartextTraffic="false"`; HSTS on server |
+| No pinning | Add OkHttp `CertificatePinner` or Network Security Config |
+| Weak pinning | Pin public key hash, include backup pin, set expiration |
+
+---
+
+## Misconception
+
+**Myth:** "We use HTTPS everywhere, so we're safe from network attacks."
+
+**Reality:** HTTPS alone guarantees encryption, but not to whom. If the app accepts any certificate (due to `trustAllCerts` or a broad `HostnameVerifier`), an attacker with a self-signed cert gets the encrypted channel. Additionally, HTTPS doesn't prevent an attacker who installs a trusted CA on a managed device from performing a transparent MitM. Certificate pinning removes that risk by refusing to trust anything except the explicitly pinned keys.

@@ -1,0 +1,246 @@
+# Deep Links & Intent Hijacking
+
+Mobile platforms use messaging systems — Android Intents and iOS URL Schemes / Universal Links — to route users into specific app screens from emails, QR codes, other apps, and web pages. These mechanisms are powerful for UX but create a security surface: external input arrives directly inside the app, carrying URLs, parameters, and tokens that the app may act on without sufficient validation.
+
+<Callout kind="insight">
+**A deep link is user-controlled input arriving at an internal app entry point.** Treat everything in an incoming Intent or URL scheme with the same skepticism you'd apply to HTTP query parameters. Apps have lost OAuth tokens, executed open redirects, and performed unauthorized actions because they trusted the contents of a deep link without validation.
+</Callout>
+
+---
+
+## Android Intents
+
+An `Intent` is Android's inter-component messaging system. Components declare what Intents they accept via `<intent-filter>` in the manifest. Any app on the device can send an Intent to any exported component.
+
+### Exported Components
+
+```xml
+<!-- AndroidManifest.xml — VULNERABLE: exported Activity -->
+<activity android:name=".PaymentActivity"
+          android:exported="true">
+    <intent-filter>
+        <action android:name="android.intent.action.VIEW"/>
+        <category android:name="android.intent.category.DEFAULT"/>
+        <data android:scheme="example" android:host="pay"/>
+    </intent-filter>
+</activity>
+```
+
+Any app can launch `PaymentActivity` with:
+```java
+Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("example://pay?amount=100&to=attacker"));
+startActivity(intent);
+```
+
+If `PaymentActivity` processes the `amount` and `to` parameters without verifying the caller's identity, this is an unauthorized action trigger.
+
+### Implicit Intents for Sensitive Operations
+
+Sending an implicit Intent for a sensitive operation lets any app on the device intercept it:
+
+```java
+// VULNERABLE — any app can register to handle this
+Intent intent = new Intent("com.example.SHOW_CREDENTIALS");
+startActivity(intent);
+```
+
+An attacker app registers an `<intent-filter>` for `com.example.SHOW_CREDENTIALS` and receives the credentials before the legitimate handler. Use explicit Intents (with a specific component name) for sensitive IPC.
+
+### Pending Intent Hijacking
+
+`PendingIntent` wraps an Intent and allows another component to fire it later. A misconfigured mutable `PendingIntent` can be hijacked:
+
+```java
+// VULNERABLE — mutable PendingIntent with empty base Intent
+Intent base = new Intent();
+PendingIntent pi = PendingIntent.getActivity(ctx, 0, base,
+    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+// Passed to a notification or third-party SDK
+```
+
+A malicious app that receives this `PendingIntent` can fill in the Intent with arbitrary data and fire it with the victim app's permissions. Fix: use `FLAG_IMMUTABLE` for PendingIntents that don't need to be modified by the receiver.
+
+---
+
+## Android Deep Links: Custom Schemes vs App Links
+
+### Custom URL Schemes (Vulnerable)
+
+```xml
+<data android:scheme="myapp" android:host="callback"/>
+```
+
+Any app can register the same scheme `myapp://`. On Android, if two apps claim the same scheme, the OS shows a chooser — or worse, on older versions, the attacker's app wins silently. OAuth redirect URIs using custom schemes are particularly dangerous:
+
+```
+myapp://callback?code=AUTHORIZATION_CODE
+```
+
+The authorization code arrives to whichever app handles `myapp://` — potentially a malicious one.
+
+### Android App Links (Secure)
+
+App Links associate a domain with an app via a Digital Asset Links file on the server. The OS verifies the association at install time. No other app can claim `https://example.com` links without controlling `example.com`.
+
+```xml
+<!-- Manifest -->
+<intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW"/>
+    <category android:name="android.intent.category.DEFAULT"/>
+    <category android:name="android.intent.category.BROWSABLE"/>
+    <data android:scheme="https" android:host="example.com"/>
+</intent-filter>
+```
+
+```json
+// https://example.com/.well-known/assetlinks.json
+[{
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+        "namespace": "android_app",
+        "package_name": "com.example.app",
+        "sha256_cert_fingerprints": ["AA:BB:CC:..."]
+    }
+}]
+```
+
+If `assetlinks.json` is not present or doesn't match the installed app, Android App Links fall back to the browser — no other app can intercept.
+
+---
+
+## iOS URL Schemes and Universal Links
+
+### Custom URL Schemes (iOS)
+
+Like Android, custom schemes on iOS are first-come-first-served among installed apps. Any app can register `myapp://`:
+
+```xml
+<!-- Info.plist -->
+<key>CFBundleURLTypes</key>
+<array>
+    <dict>
+        <key>CFBundleURLSchemes</key>
+        <array><string>myapp</string></array>
+    </dict>
+</array>
+```
+
+A malicious App Store app can register the same scheme and intercept OAuth callbacks. Never use custom schemes for security-sensitive flows.
+
+### Universal Links (Secure)
+
+Universal Links work like Android App Links — an `apple-app-site-association` file on the server proves domain ownership:
+
+```json
+// https://example.com/.well-known/apple-app-site-association
+{
+    "applinks": {
+        "apps": [],
+        "details": [{
+            "appID": "TEAMID.com.example.app",
+            "paths": ["/callback/*", "/auth/*"]
+        }]
+    }
+}
+```
+
+Only apps with the matching Team ID and bundle ID can handle these URLs. Fallback is the browser — no interception possible.
+
+---
+
+## OAuth and Deep Links
+
+OAuth flows on mobile use the redirect_uri to return the authorization code to the app. This is a high-value target.
+
+**Vulnerable (custom scheme):**
+```
+redirect_uri=myapp://oauth/callback
+```
+Any app can register `myapp://` and steal the code.
+
+**Secure (App Link / Universal Link):**
+```
+redirect_uri=https://example.com/oauth/callback
+```
+Only the verified app gets the link. Or use PKCE (Proof Key for Code Exchange) — even if the code is intercepted, the attacker can't exchange it without the code verifier generated on-device.
+
+```
+Authorization request: code_challenge = SHA256(code_verifier)
+Token exchange: must provide code_verifier — attacker doesn't have it
+```
+
+PKCE should always be used for mobile OAuth regardless of redirect URI scheme.
+
+---
+
+## Input Validation on Deep Link Parameters
+
+Regardless of scheme security, parameters arriving via deep links must be validated:
+
+```kotlin
+// VULNERABLE — open redirect via deep link
+override fun onNewIntent(intent: Intent) {
+    val url = intent.data?.getQueryParameter("redirect_to") ?: return
+    webView.loadUrl(url)  // attacker controls the URL
+}
+```
+
+An attacker sends `myapp://screen?redirect_to=javascript:steal_cookies()` — XSS in a WebView via deep link.
+
+```kotlin
+// SECURE — allowlist of valid destinations
+val ALLOWED_PATHS = setOf("/home", "/profile", "/settings")
+val path = Uri.parse(url).path
+if (path in ALLOWED_PATHS) {
+    webView.loadUrl("https://example.com$path")
+} else {
+    // reject
+}
+```
+
+Never pass deep link parameters directly to:
+- `WebView.loadUrl()`
+- SQL queries
+- File paths
+- Shell commands
+
+---
+
+## Broadcast Receivers and Content Providers
+
+Other exported components are also attack surfaces:
+
+**Exported BroadcastReceiver:**
+```xml
+<receiver android:name=".UpdateReceiver" android:exported="true"/>
+```
+Any app can send a broadcast to trigger the receiver. Validate the action and sender before acting.
+
+**Content Provider path traversal:**
+```kotlin
+// VULNERABLE — path traversal in file provider
+fun openFile(uri: Uri): ParcelFileDescriptor {
+    val path = uri.lastPathSegment  // could be "../../private/secret"
+    return ParcelFileDescriptor.open(File(filesDir, path), MODE_READ_ONLY)
+}
+```
+
+Canonicalize paths and verify they remain within the intended directory before opening files from provider URIs.
+
+---
+
+## Real-World Examples
+
+**Shopify (2021, HackerOne)** — A deep link handler in the Shopify Android app passed an attacker-controlled URL to a WebView. The `redirect_to` parameter was not validated, enabling JavaScript injection via `javascript:` URIs from malicious deep links.
+
+**Grab (2019)** — The Grab ride-hailing app had an exported Activity that could be triggered by any app, initiating a payment flow with attacker-supplied parameters. Demonstrated by researchers as an unauthorized payment trigger via crafted Intent.
+
+**Multiple OAuth apps (recurring)** — Apps using custom scheme redirect URIs for OAuth have had their authorization codes stolen by malicious apps registered with the same scheme, particularly on Android where the chooser UX can be manipulated.
+
+---
+
+## Misconception
+
+**Myth:** "Deep links just open screens — they're not a real attack surface."
+
+**Reality:** Deep links deliver attacker-controlled input directly to internal app entry points, often bypassing the normal request validation that protects API endpoints. They've been used to steal OAuth tokens, trigger unauthorized actions, perform WebView XSS, and traverse to private files. Every deep link handler is an input validation boundary that deserves the same scrutiny as an HTTP endpoint.

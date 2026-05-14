@@ -1,0 +1,205 @@
+# Insecure Data Storage
+
+Mobile apps store data in many places: SQLite databases, shared preferences, the filesystem, external storage, and cloud backups. The risk is that sensitive data — credentials, session tokens, PII, health records — ends up persisted in a location that other apps, physical attackers, or malware can read. Unlike a server, the mobile device is physically in the hands of a potentially hostile party.
+
+<Callout kind="insight">
+**The threat model is different on mobile.** A server-side attacker needs a network path. A mobile attacker may have physical access to the device, malware running in another app, or root access from a jailbreak/unlock. Store only what you must, encrypt what you store, and use platform-secure storage APIs rather than rolling your own.
+</Callout>
+
+---
+
+## Where Apps Store Data
+
+### Internal Storage
+
+Files in `/data/data/<package>/` are private to the app by default on Android. On iOS, the app sandbox at `/var/mobile/Containers/Data/Application/<UUID>/` is similarly restricted. **However**, "private" only means other apps without root cannot read them. A rooted Android device or jailbroken iPhone loses this guarantee entirely.
+
+Common internal paths that developers misuse:
+
+```
+Android:
+/data/data/com.example.app/shared_prefs/   ← SharedPreferences (XML, unencrypted)
+/data/data/com.example.app/databases/      ← SQLite databases
+/data/data/com.example.app/files/          ← arbitrary files
+
+iOS:
+~/Documents/                               ← backed up to iCloud by default
+~/Library/Caches/                          ← not backed up, but not encrypted at rest
+~/Library/Preferences/<bundle>.plist       ← NSUserDefaults (unencrypted)
+```
+
+### External Storage (Android)
+
+Files on the SD card or `Environment.getExternalStorageDirectory()` are **world-readable** on Android ≤ 9. Any app with `READ_EXTERNAL_STORAGE` permission can access them. Never store sensitive data on external storage.
+
+```java
+// VULNERABLE — world-readable on older Android
+File file = new File(Environment.getExternalStorageDirectory(), "tokens.txt");
+FileWriter writer = new FileWriter(file);
+writer.write(userToken);
+```
+
+### Backups
+
+**Android** backs up `/data/data/<package>/` to Google Drive by default unless `android:allowBackup="false"` is set in the manifest. An attacker who has access to the victim's Google account can pull the backup and extract tokens.
+
+**iOS** backs up `~/Documents/` and `~/Library/` to iCloud and iTunes. Files can be excluded per-file with the `NSURLIsExcludedFromBackupKey` attribute. Credentials should be stored in the Keychain instead — the Keychain is not included in unencrypted backups.
+
+---
+
+## Common Vulnerabilities
+
+### 1. Plaintext Credentials in SharedPreferences / NSUserDefaults
+
+The most common mistake: saving a password, API key, or session token as a plain string.
+
+```kotlin
+// VULNERABLE — Android SharedPreferences
+val prefs = getSharedPreferences("user", MODE_PRIVATE)
+prefs.edit().putString("password", userPassword).apply()
+```
+
+On a rooted device, anyone can read `shared_prefs/user.xml`:
+
+```xml
+<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
+<map>
+  <string name="password">hunter2</string>
+</map>
+```
+
+### 2. Sensitive Data in SQLite Without Encryption
+
+SQLite databases are single files. On a rooted device, `adb pull /data/data/com.example.app/databases/app.db` retrieves the full database. If session tokens, messages, or PII are stored in plaintext, they're fully exposed.
+
+### 3. Logging Sensitive Data
+
+Android's `Logcat` is readable by any app with `READ_LOGS` permission (pre-Android 4.1) and by any attached debugger. Logs often persist across app restarts.
+
+```kotlin
+// VULNERABLE — appears in logcat
+Log.d("Auth", "Login success, token=$authToken")
+```
+
+Logging should be stripped from release builds. Use ProGuard/R8 rules or a logging facade that no-ops in production.
+
+### 4. Insecure File Permissions
+
+Setting `MODE_WORLD_READABLE` or `MODE_WORLD_WRITEABLE` on file creation creates files readable by any app.
+
+```java
+// VULNERABLE — deprecated and dangerous
+FileOutputStream fos = openFileOutput("data.txt", Context.MODE_WORLD_READABLE);
+```
+
+This was deprecated in Android API 17. Never use it.
+
+---
+
+## Secure Storage APIs
+
+### Android Keystore
+
+The Android Keystore system stores cryptographic keys in hardware-backed secure storage (TEE or StrongBox) where they cannot be exported. Use it to encrypt sensitive data, then store the ciphertext.
+
+```kotlin
+// Generate a key in the Keystore
+val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+keyGenerator.init(
+    KeyGenParameterSpec.Builder("myKey",
+        KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+        .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+        .setUserAuthenticationRequired(true)  // require biometric/PIN
+        .build()
+)
+val secretKey = keyGenerator.generateKey()
+```
+
+The key never leaves the secure hardware. Even on a rooted device, the raw key material is inaccessible.
+
+### iOS Keychain
+
+The iOS Keychain is the correct place for passwords, tokens, and certificates. Items are encrypted with the device passcode and inaccessible without it.
+
+```swift
+import Security
+
+let query: [String: Any] = [
+    kSecClass as String: kSecClassGenericPassword,
+    kSecAttrService as String: "com.example.app",
+    kSecAttrAccount as String: "authToken",
+    kSecValueData as String: tokenData,
+    kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+]
+SecItemAdd(query as CFDictionary, nil)
+```
+
+`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` ensures the item is not included in iCloud backups and is tied to the device.
+
+### EncryptedSharedPreferences (Android)
+
+For key-value data that must persist beyond the process, use Jetpack Security's `EncryptedSharedPreferences`, which transparently encrypts keys and values using keys stored in the Keystore.
+
+```kotlin
+val masterKey = MasterKey.Builder(context)
+    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+    .build()
+
+val prefs = EncryptedSharedPreferences.create(
+    context, "secure_prefs", masterKey,
+    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+)
+prefs.edit().putString("token", authToken).apply()
+```
+
+---
+
+## Backup Configuration
+
+```xml
+<!-- AndroidManifest.xml -->
+<application
+    android:allowBackup="false"
+    android:fullBackupContent="@xml/backup_rules">
+```
+
+```xml
+<!-- res/xml/backup_rules.xml — exclude sensitive paths -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="user.xml"/>
+    <exclude domain="database" path="app.db"/>
+</full-backup-content>
+```
+
+---
+
+## Real-World Examples
+
+**Starbucks (2014)** — The Starbucks iOS app stored usernames, passwords, and geolocation data in plaintext log files. An attacker with physical access to an unlocked iPhone could copy the log and extract credentials.
+
+**Snapchat (2014, "The Snappening")** — A third-party Snapchat client saved received images to external storage without informing users. When the service was breached, ~100,000 images were collected from devices.
+
+**Numerous banking apps (recurring)** — Mobile security researchers routinely find banking app credentials, OTP seeds, and account numbers in `SharedPreferences`, SQLite databases, or Logcat output, particularly in apps targeting emerging markets.
+
+---
+
+## Defenses Summary
+
+| Risk | Defense |
+|------|---------|
+| Credentials in SharedPreferences | Use `EncryptedSharedPreferences` or Android Keystore |
+| Sensitive data in SQLite | SQLCipher for full DB encryption; store decryption key in Keystore |
+| External storage exposure | Never write sensitive data to external storage |
+| Backup leakage | `android:allowBackup="false"` or targeted exclusion rules |
+| Log leakage | No sensitive data in logs; strip logging in release builds |
+| iOS plaintext prefs | Use Keychain with `WhenUnlockedThisDeviceOnly` accessibility |
+
+---
+
+## Misconception
+
+**Myth:** "Our app uses HTTPS, so data security is covered."
+
+**Reality:** TLS protects data in transit. Insecure storage is about data at rest — on the device itself. HTTPS does nothing to protect a token written to a world-readable file or a plaintext SQLite database pulled off a rooted phone. Transport and storage security are orthogonal requirements.

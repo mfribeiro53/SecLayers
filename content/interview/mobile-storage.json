@@ -1,0 +1,38 @@
+[
+  {
+    "id": "mobile-storage-junior-01",
+    "question": "What are the main places an Android app stores data, and which are risky for sensitive information?",
+    "answer": "Android apps store data in: (1) Internal storage at /data/data/<package>/ — private by default but accessible on rooted devices; (2) SharedPreferences — XML files in internal storage, plaintext by default; (3) SQLite databases — also in internal storage, plaintext by default; (4) External storage (SD card / getExternalStorageDirectory()) — world-readable on Android 9 and below, accessible by any app with READ_EXTERNAL_STORAGE permission; (5) Cloud backups — Android backs up internal storage to Google Drive by default unless android:allowBackup=false is set. Sensitive data should never go to external storage, should be encrypted if stored internally, and backup rules should exclude credential stores. The safest option for credentials and tokens is the Android Keystore system.",
+    "category": "junior"
+  },
+  {
+    "id": "mobile-storage-junior-02",
+    "question": "Why is storing a password in SharedPreferences a problem, even if the file is 'private'?",
+    "answer": "SharedPreferences files are plain XML stored in /data/data/<package>/shared_prefs/. 'Private' means other apps without root can't read them — but this protection disappears on a rooted or compromised device. On a rooted Android, anyone can run: adb pull /data/data/com.example.app/shared_prefs/ and read all values in plaintext. Additionally, Android's backup mechanism may include SharedPreferences in cloud backups, exposing the data if the user's Google account is compromised. The correct approach is to never store passwords at all — use tokens after initial auth — and store those tokens in EncryptedSharedPreferences or the Android Keystore.",
+    "category": "junior"
+  },
+  {
+    "id": "mobile-storage-mid-01",
+    "question": "How does Android Keystore protect keys differently from storing an AES key in SharedPreferences?",
+    "answer": "SharedPreferences stores whatever bytes you put there — including an AES key — in a plaintext XML file. Extracting it requires only file system access (trivial on root). The Android Keystore system is fundamentally different: keys are generated inside a hardware-backed enclave (TEE or StrongBox) and the raw key material never exits that enclave. Even with root access, an attacker cannot extract the key bytes. The only way to use the key is through the Keystore API, which enforces access controls: the key can require biometric authentication, be restricted to specific cryptographic operations, and be invalidated if new biometrics are enrolled. This means even a fully rooted device cannot exfiltrate the key — the attacker can use the device to perform key operations (if they pass the auth check), but cannot take the key elsewhere.",
+    "category": "mid"
+  },
+  {
+    "id": "mobile-storage-mid-02",
+    "question": "What is the risk of Android cloud backups for app security, and how do you mitigate it?",
+    "answer": "By default, Android backs up the contents of /data/data/<package>/ to Google Drive, including SharedPreferences, databases, and arbitrary files. If an attacker gains access to the victim's Google account (phishing, credential stuffing, or account recovery), they can restore the backup to a device they control and access session tokens, cached credentials, or application state. Mitigation has two layers: (1) Set android:allowBackup='false' in the manifest to disable all cloud backup — appropriate for high-security apps; or use android:fullBackupContent to specify backup rules that exclude sensitive paths. (2) For data that must persist but is sensitive (e.g., cached tokens), encrypt it with a key stored in the Keystore — the Keystore itself is not included in backups, so the encrypted blob is useless without the device. iOS has the equivalent: Keychain items with kSecAttrAccessibleWhenUnlockedThisDeviceOnly are excluded from backups.",
+    "category": "mid"
+  },
+  {
+    "id": "mobile-storage-senior-01",
+    "question": "Design a secure local data storage architecture for a mobile banking app that must cache account data for offline use.",
+    "answer": "The requirements are: cache account data for offline viewing, protect it from device theft and rooted device extraction, and handle key lifecycle correctly.\n\n1. Key management: Generate an AES-256 key in the Android Keystore with setUserAuthenticationRequired(true) and a timeout (e.g., 30 seconds). This means the key is only usable for 30 seconds after the user authenticates with biometric or PIN. The key never leaves hardware.\n\n2. Database encryption: Use SQLCipher with a database key derived from the Keystore key. The Keystore key decrypts the SQLCipher key, which opens the database. On iOS, use SQLCipher with a key derived from a Secure Enclave-protected key.\n\n3. Data minimization: Cache only what's needed for offline display — masked account numbers, recent transaction summaries. Never cache full card numbers, CVVs, or authentication credentials.\n\n4. Backup exclusion: android:allowBackup=false or explicit exclusion of the database in backup_rules.xml. The encrypted database is useless without the Keystore key, but defense in depth means not leaking ciphertext unnecessarily either.\n\n5. Key invalidation: setInvalidatedByBiometricEnrollment(true) ensures that if a new fingerprint is enrolled (attacker adds their own), the Keystore key is destroyed and cached data becomes inaccessible until the user re-authenticates to the backend and re-derives the key.\n\n6. Wipe on excessive failures: Track failed unlock attempts. After N failures, wipe the local cache and force full re-authentication against the backend.",
+    "category": "senior"
+  },
+  {
+    "id": "mobile-storage-senior-02",
+    "question": "A mobile app is found to write authentication tokens to Logcat in a staging build. How do you fix this systematically across the codebase?",
+    "answer": "The immediate fix is to remove the specific log statement. The systematic fix prevents recurrence:\n\n1. Build-time stripping: Configure ProGuard/R8 to remove all Log.* calls in release builds: -assumenosideeffects class android.util.Log { *; }. This removes logging bytecode entirely from release APKs.\n\n2. Logging facade: Replace direct Log.* calls with a wrapper that no-ops in release: if (BuildConfig.DEBUG) { Log.d(TAG, message) }. Better: use Timber or a similar library that installs different trees per build type — a DebugTree for debug builds, nothing for release.\n\n3. CI/CD gate: Add a static analysis step (grep or custom lint rule) that fails the pipeline if sensitive patterns appear in log statements: grep -r 'Log\\..*token\\|Log\\..*password\\|Log\\..*auth' app/src/main/.\n\n4. Lint rules: Write a custom Android Lint check that flags Log calls where the message concatenates variables from auth-related method return values.\n\n5. Staging environment guardrail: Staging builds should have a log interceptor that scans log output for patterns matching tokens (e.g., Bearer [a-zA-Z0-9]{20,}) and alerts the security team.\n\n6. Code review checklist: Add 'No sensitive data in logs' to the mandatory PR review checklist for all auth-related code paths.",
+    "category": "senior"
+  }
+]

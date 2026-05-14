@@ -1,0 +1,227 @@
+# Reverse Engineering & Tampering
+
+Mobile apps ship as compiled binaries — APKs on Android, IPAs on iOS. Unlike server-side code that never leaves your infrastructure, the app runs directly on a device the user (or attacker) controls. Given enough time, a determined attacker can disassemble the binary, understand its logic, extract secrets, and modify its behavior. The question is not whether this is possible, but how much friction you impose and what you protect server-side.
+
+<Callout kind="insight">
+**Security through obscurity in a binary is not security.** Hardcoded API keys, client-side license checks, and "secret" algorithm implementations will be found by anyone who cares to look. The correct model: treat the client as untrusted, enforce all security-critical decisions on the server, and use reverse engineering resistance to raise the cost of attack — not as a primary defense.
+</Callout>
+
+---
+
+## What Attackers Do With Reverse Engineering
+
+- **Extract secrets** — API keys, private keys, encryption keys hardcoded in the binary
+- **Understand proprietary logic** — pricing algorithms, fraud detection rules, game mechanics
+- **Bypass client-side checks** — license validation, feature flags, root detection, certificate pinning
+- **Repackage and redistribute** — modified APKs with malware, removed ads, or unlocked features
+- **Find server-side vulnerabilities** — by reading the client code that constructs API requests
+
+---
+
+## Android: APK Structure and Disassembly
+
+An APK is a ZIP file. Unzip it to see:
+
+```
+app.apk/
+├── AndroidManifest.xml    (binary XML — decode with apktool)
+├── classes.dex            (Dalvik bytecode)
+├── classes2.dex           (multidex)
+├── res/                   (resources)
+├── assets/                (arbitrary files)
+└── lib/                   (native .so libraries)
+```
+
+### Bytecode to Java: jadx
+
+`jadx` decompiles `.dex` Dalvik bytecode back to readable Java/Kotlin:
+
+```bash
+jadx -d output/ app.apk
+```
+
+For a large app, the output is a navigable source tree. Search for secrets:
+
+```bash
+grep -r "api_key\|secret\|password\|Bearer\|private_key" output/
+```
+
+### Smali: Patching the Bytecode
+
+`apktool` disassembles to Smali — a human-readable representation of Dalvik instructions. Attackers patch Smali to modify behavior:
+
+```bash
+apktool d app.apk -o app_disassembled/
+# edit smali files...
+apktool b app_disassembled/ -o app_patched.apk
+# re-sign
+jarsigner -keystore test.keystore app_patched.apk testkey
+```
+
+Common patches:
+- Change a branch instruction to unconditionally return `true` from `isPremiumUser()`
+- Remove certificate pinning code
+- Disable root detection
+
+---
+
+## iOS: IPA Analysis
+
+An IPA is also a ZIP. The app binary inside is a Mach-O file (ARM64). iOS distributes apps encrypted via FairPlay DRM from the App Store. To analyze, attackers use a jailbroken device to dump the decrypted binary at runtime:
+
+```bash
+# On jailbroken device
+frida-ios-dump com.example.app
+```
+
+The resulting binary can be analyzed with:
+
+- **Hopper Disassembler / IDA Pro** — interactive disassemblers for Mach-O
+- **Ghidra** — free NSA-developed binary analysis tool
+- **class-dump** — extracts Objective-C class/method headers from binaries
+
+---
+
+## Dynamic Analysis and Instrumentation
+
+### Frida
+
+Frida is a dynamic instrumentation framework that injects a JavaScript engine into the running process. Attackers (and security researchers) use it to:
+
+```javascript
+// Hook a method at runtime — bypass root detection
+Java.perform(function() {
+    var RootDetector = Java.use("com.example.app.security.RootDetector");
+    RootDetector.isRooted.implementation = function() {
+        console.log("isRooted called — returning false");
+        return false;
+    };
+});
+```
+
+```javascript
+// Dump all strings passed to a crypto function
+Java.perform(function() {
+    var Cipher = Java.use("javax.crypto.Cipher");
+    Cipher.doFinal.overload("[B").implementation = function(input) {
+        console.log("Cipher.doFinal input: " + bytesToHex(input));
+        var result = this.doFinal(input);
+        console.log("Cipher.doFinal output: " + bytesToHex(result));
+        return result;
+    };
+});
+```
+
+### Objection
+
+Built on Frida, `objection` is a runtime exploration toolkit with pre-built commands:
+
+```bash
+objection -g com.example.app explore
+# Inside objection:
+android sslpinning disable
+android root disable
+ios jailbreak disable
+```
+
+---
+
+## Hardcoded Secrets
+
+Secrets embedded in binaries are always extractable. Grep finds them in Smali/Java; `strings` finds them in native libraries.
+
+```bash
+# Find in native libraries
+strings lib/arm64-v8a/libapp.so | grep -i "key\|secret\|token\|api"
+```
+
+What to do instead:
+- **API keys** → provision from backend at runtime after authentication; short-lived and scoped
+- **Encryption keys** → derive from user credentials or store in platform secure storage (Keystore/Keychain)
+- **No secrets at all** → use asymmetric auth (client certificates, signed JWTs) where the private key never leaves secure hardware
+
+---
+
+## Code Obfuscation
+
+Obfuscation raises the bar for reading decompiled code — it doesn't prevent analysis but significantly increases the time required.
+
+### ProGuard / R8 (Android)
+
+```proguard
+# proguard-rules.pro
+-obfuscateclassmembers class ** { *; }
+-repackageclasses ''
+-allowaccessmodification
+```
+
+R8 is the default shrinker/obfuscator since Android Gradle Plugin 3.4. It renames classes, methods, and fields to single-letter names:
+
+```java
+// Before obfuscation
+public boolean isPremiumUser(User user) { ... }
+
+// After obfuscation
+public boolean a(b c) { ... }
+```
+
+### Stronger Options
+
+- **DexGuard** (commercial) — string encryption, reflection-based calls, resource obfuscation
+- **LLVM IR obfuscation** — for native code, tools like OLLVM add bogus control flow and instruction substitutions
+
+<Callout kind="warning">
+Obfuscation is a speed bump, not a wall. Jadx handles ProGuard-obfuscated code well. Dynamic analysis via Frida bypasses static obfuscation entirely — the code runs unobfuscated at runtime.
+</Callout>
+
+---
+
+## Tamper Detection
+
+Apps can detect modification at runtime:
+
+**Signature verification (Android):**
+```kotlin
+val sig = packageManager.getPackageInfo(packageName, PackageManager.GET_SIGNATURES)
+    .signatures[0]
+val expectedHash = "YOUR_EXPECTED_SHA256"
+val actualHash = MessageDigest.getInstance("SHA-256")
+    .digest(sig.toByteArray())
+    .let { Base64.encodeToString(it, Base64.DEFAULT) }
+
+if (actualHash != expectedHash) {
+    // App has been repackaged
+}
+```
+
+**Limitations:** Frida can hook `getPackageInfo` to return the expected signature. All tamper detection on a compromised device is advisory, not enforced. Server-side verification of signed attestations (Play Integrity API, App Attest) is more robust.
+
+---
+
+## Play Integrity API / App Attest
+
+These are the strongest defenses against tampering:
+
+**Android Play Integrity API** — Google's backend vouches that the APK was downloaded unmodified from the Play Store, running on a certified device, with a genuine Android build. The backend validates a signed token from Google's servers.
+
+**iOS App Attest / DeviceCheck** — Apple's equivalent. The device generates a key pair in the Secure Enclave and Apple attests that the app is a genuine, unmodified App Store distribution. The backend verifies with Apple.
+
+Neither is unbreakable, but both force the attacker to use more sophisticated approaches (custom firmware, emulators) rather than a simple APK repack.
+
+---
+
+## Real-World Examples
+
+**Pokémon GO (2016+)** — Niantic has an ongoing arms race against reverse engineers who extract server protocol definitions to build bots. Each update breaks the bots temporarily; researchers RE the new binary within days.
+
+**Banking trojans** — Attackers RE banking apps to understand the exact format of API requests, then build malware that mimics legitimate app traffic — bypassing device-fingerprinting defenses designed for external clients.
+
+**Game cheats** — Virtually every popular mobile game with real-money economies has been reversed to find the authentication tokens for server-side item manipulation, or to patch local game logic for aimbots and resource hacks.
+
+---
+
+## Misconception
+
+**Myth:** "Our app doesn't contain any sensitive logic, so reverse engineering isn't a concern."
+
+**Reality:** Even without proprietary algorithms, reverse engineering reveals: the structure of all API endpoints and their parameters, all error codes and their meanings (useful for enumeration), client-side validation rules that the server may not re-enforce, and any hardcoded tokens or configuration URLs. The attacker doesn't need to understand your business logic — they just need the API surface to probe.

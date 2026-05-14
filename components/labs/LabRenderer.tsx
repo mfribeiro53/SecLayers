@@ -6,6 +6,9 @@ import { CSRFLabTool } from "./CSRFLabTool";
 import { IDORLabTool } from "./IDORLabTool";
 import { BrokenAPILabTool } from "./BrokenAPILabTool";
 import { GraphQLIntrospectionLabTool } from "./GraphQLIntrospectionLabTool";
+import { MobileStorageLabTool } from "./MobileStorageLabTool";
+import { MobileTLSLabTool } from "./MobileTLSLabTool";
+import { MobileIntentLabTool } from "./MobileIntentLabTool";
 
 const LAB_COMPONENTS: Record<string, React.ComponentType> = {
   "sqli-login-bypass": SQLiLabTool,
@@ -14,6 +17,9 @@ const LAB_COMPONENTS: Record<string, React.ComponentType> = {
   "idor-user-profile": IDORLabTool,
   "broken-api-auth": BrokenAPILabTool,
   "graphql-introspection": GraphQLIntrospectionLabTool,
+  "mobile-storage-plaintext": MobileStorageLabTool,
+  "mobile-tls-mitm": MobileTLSLabTool,
+  "mobile-intent-hijack": MobileIntentLabTool,
 };
 
 export function LabRenderer({ slug }: { slug: string }) {

@@ -63,11 +63,42 @@ export const LABS: Lab[] = [
       "Introspection is enabled in production. Use it to discover a hidden type and query the secret flag field.",
     tags: ["graphql", "introspection", "api"],
   },
+  {
+    slug: "mobile-storage-plaintext",
+    title: "Insecure Storage: Credential Harvest",
+    act: 4,
+    chapterSlug: "mobile-storage",
+    difficulty: "easy",
+    objective:
+      "You have ADB root access to a device running BankLite. The app stores credentials locally. Navigate the filesystem to find and read the plaintext password.",
+    tags: ["mobile", "storage", "adb"],
+  },
+  {
+    slug: "mobile-tls-mitm",
+    title: "TLS Bypass: MitM Interception",
+    act: 4,
+    chapterSlug: "mobile-tls",
+    difficulty: "medium",
+    objective:
+      "CryptoBank's app uses trustAllCerts — it accepts any TLS certificate. Set up a MitM proxy and intercept the victim's auth token.",
+    tags: ["mobile", "tls", "mitm"],
+  },
+  {
+    slug: "mobile-intent-hijack",
+    title: "Intent Hijacking: OAuth Token Theft",
+    act: 4,
+    chapterSlug: "mobile-intents",
+    difficulty: "medium",
+    objective:
+      "BankApp uses a custom URL scheme for its OAuth redirect URI. Install a malicious app that claims the same scheme and steal the authorization code.",
+    tags: ["mobile", "intent", "oauth"],
+  },
 ];
 
 export const LAB_ACT_LABELS: Record<number, string> = {
   2: "Act I — Web Security",
   3: "Act II — API Security",
+  4: "Act III — Mobile Security",
 };
 
 export function getLabBySlug(slug: string): Lab | undefined {
