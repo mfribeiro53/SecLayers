@@ -21,6 +21,8 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
+  basePath: "/SecLayers",
   pageExtensions: ["ts", "tsx", "js", "jsx", "md", "mdx"],
   async headers() {
     return [
