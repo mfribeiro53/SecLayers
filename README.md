@@ -25,9 +25,15 @@ App runs at `http://localhost:3020/SecLayers`.
 To run in the background:
 
 ```bash
-docker run -d -p 3020:3000 --name seclayers seclayers
-docker restart seclayers          # to reboot
-docker stop seclayers && docker rm seclayers  # to stop
+docker run -d -p 3020:3000 --name seclayers-test seclayers
+docker restart seclayers-test          # to reboot
+docker stop seclayers-test && docker rm seclayers-test  # to stop
+```
+
+To rebuild after code changes:
+
+```bash
+docker stop seclayers && docker rm seclayers && docker build -t seclayers . && docker run -d -p 3020:3000 --name seclayers-test seclayers
 ```
 
 ## Tech Stack

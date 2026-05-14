@@ -37,6 +37,9 @@ export default function RootLayout({
               <main id="main-content" className="flex-1 overflow-auto">
                 {children}
               </main>
+              <footer className="shrink-0 py-2 px-6 text-center text-xs" style={{ color: "var(--text-muted)" }}>
+                &copy; {new Date().getFullYear()} Miguel F. Ribeiro · MIT License
+              </footer>
             </div>
           </div>
           <GlossaryPanel />
