@@ -41,6 +41,7 @@ const TOOLS: Record<string, React.ComponentType> = {
   HeapVisualizerTool: dynamic(() => import("@/components/tools/HeapVisualizerTool"), { ssr: false }),
   MitigationToggleTool: dynamic(() => import("@/components/tools/MitigationToggleTool"), { ssr: false }),
   ThreadTimelineTool: dynamic(() => import("@/components/tools/ThreadTimelineTool"), { ssr: false }),
+  CompilerPipelineTool: dynamic(() => import("@/components/tools/CompilerPipelineTool"), { ssr: false }),
   // Act V — Cloud & Infrastructure
   IAMPolicySimulatorTool: dynamic(() => import("@/components/tools/IAMPolicySimulatorTool"), { ssr: false }),
   BucketACLTool: dynamic(() => import("@/components/tools/BucketACLTool"), { ssr: false }),

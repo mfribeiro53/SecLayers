@@ -113,6 +113,27 @@ export const systemsMeta: Record<string, ToolMeta> = {
       lookFor: "A tool that finds 0 aspects is not broken — it may simply not be applicable to this target. The Python target exposes that binary analysis tools don't apply to interpreted languages. The coverage matrix shows the complementary nature of all four categories: static analysis finds the code pattern; dynamic tools confirm it's exploitable; fuzzing finds it without knowing where to look.",
     },
   },
+  CompilerPipelineTool: {
+    summary: "Three interactive scenarios showing how the compilation pipeline changes security behaviour: the optimizer silently removing a memset, ASan injecting shadow-memory checks at the IR stage, and JIT constant blinding defeating a spray attack.",
+    quickStart: [
+      "Start with 'Dead Store Elimination' — switch to -O2 and watch memset disappear from the output",
+      "Check the memory panel to see the secret key bytes surviving in freed memory",
+      "Switch to 'Sanitizer Instrumentation' — compare the silent OOB read with the ASan IR-level report",
+      "Open 'JIT Spraying' — toggle blinding off to see the RET gadget chain, then on to see it randomised away",
+    ],
+    help: {
+      goal: "How three distinct points in the compilation pipeline — the optimizer, the IR instrumentation stage, and the JIT code generator — each produce security consequences that are invisible in source code alone.",
+      steps: [
+        "Dead Store: select -O0 and confirm memset appears in the assembly and key bytes are zeroed",
+        "Dead Store: switch to -O2 and observe the memset call is absent — see the raw key bytes in the memory panel",
+        "Sanitizer: select 'default' and read the runtime output — notice the program runs silently despite the OOB read",
+        "Sanitizer: switch to '-fsanitize=address' and read the IR instrumentation snippet, then the runtime error with exact line and overrun size",
+        "JIT Spray: disable blinding and identify the RET gadget (0xc3) that appears at every offset +1 in the spray",
+        "JIT Spray: enable blinding and confirm the in-memory bytes are unpredictable — no usable gadget pattern",
+      ],
+      lookFor: "Each scenario highlights a different pipeline stage in orange. The optimizer stage (scenario 1) can remove correct code. The IR stage (scenario 2) is where sanitizer checks are injected — before machine code is generated. The JIT code generator (scenario 3) is where immediates are masked. Security happens — and fails — at specific stages, not in 'the compiler' as a whole.",
+    },
+  },
   ThreadTimelineTool: {
     summary: "Run two threads concurrently on a shared variable and trigger a TOCTOU race condition. Add a mutex and watch the data race disappear from the timeline.",
     quickStart: [

@@ -45,22 +45,23 @@ export const TOPICS: Topic[] = [
   { num: 28, act: 5, title: "Mitigations (ASLR, NX, Canaries)",slug: "mitigations",       actLabel: "Act IV — Systems",             toolComponent: "MitigationToggleTool",    tags: ["binary", "defense"] },
   { num: 29, act: 5, title: "Race Conditions & TOCTOU",      slug: "race-conditions",     actLabel: "Act IV — Systems",             toolComponent: "ThreadTimelineTool",      tags: ["binary", "concurrency"] },
   { num: 30, act: 5, title: "Static & Binary Analysis",      slug: "binary-analysis",     actLabel: "Act IV — Systems",             toolComponent: "CodeAuditWorkflowTool",   tags: ["binary", "static-analysis", "fuzzing"] },
+  { num: 31, act: 5, title: "Compilers, Assemblers & Runtimes", slug: "compilers",        actLabel: "Act IV — Systems",             toolComponent: "CompilerPipelineTool",    tags: ["binary", "compiler", "jit"] },
 
   // ── Act V — Cloud & Infrastructure (act 6) ───────────────
-  { num: 31, act: 6, title: "IAM & Least Privilege",         slug: "iam",                 actLabel: "Act V — Cloud & Infrastructure", toolComponent: "IAMPolicySimulatorTool",  tags: ["cloud", "aws"] },
-  { num: 32, act: 6, title: "Misconfigured Storage",         slug: "cloud-storage",       actLabel: "Act V — Cloud & Infrastructure", toolComponent: "BucketACLTool",            tags: ["cloud", "s3"] },
-  { num: 33, act: 6, title: "Container Security",            slug: "containers",          actLabel: "Act V — Cloud & Infrastructure", toolComponent: "DockerfileLinterTool",    tags: ["cloud", "docker"] },
-  { num: 34, act: 6, title: "Kubernetes RBAC",               slug: "k8s-rbac",            actLabel: "Act V — Cloud & Infrastructure", toolComponent: "K8sRBACBuilderTool",      tags: ["cloud", "kubernetes"] },
-  { num: 35, act: 6, title: "Secrets Management",            slug: "secrets",             actLabel: "Act V — Cloud & Infrastructure", toolComponent: "SecretSprawlTool",        tags: ["cloud", "secrets"] },
-  { num: 36, act: 6, title: "IaC Security",                  slug: "iac",                 actLabel: "Act V — Cloud & Infrastructure", toolComponent: "TerraformScannerTool",    tags: ["cloud", "terraform"] },
-  { num: 37, act: 6, title: "Logging, Monitoring & IR",      slug: "logging-monitoring",  actLabel: "Act V — Cloud & Infrastructure", toolComponent: "LogInjectorTool",         tags: ["cloud", "siem", "incident-response"] },
+  { num: 32, act: 6, title: "IAM & Least Privilege",         slug: "iam",                 actLabel: "Act V — Cloud & Infrastructure", toolComponent: "IAMPolicySimulatorTool",  tags: ["cloud", "aws"] },
+  { num: 33, act: 6, title: "Misconfigured Storage",         slug: "cloud-storage",       actLabel: "Act V — Cloud & Infrastructure", toolComponent: "BucketACLTool",            tags: ["cloud", "s3"] },
+  { num: 34, act: 6, title: "Container Security",            slug: "containers",          actLabel: "Act V — Cloud & Infrastructure", toolComponent: "DockerfileLinterTool",    tags: ["cloud", "docker"] },
+  { num: 35, act: 6, title: "Kubernetes RBAC",               slug: "k8s-rbac",            actLabel: "Act V — Cloud & Infrastructure", toolComponent: "K8sRBACBuilderTool",      tags: ["cloud", "kubernetes"] },
+  { num: 36, act: 6, title: "Secrets Management",            slug: "secrets",             actLabel: "Act V — Cloud & Infrastructure", toolComponent: "SecretSprawlTool",        tags: ["cloud", "secrets"] },
+  { num: 37, act: 6, title: "IaC Security",                  slug: "iac",                 actLabel: "Act V — Cloud & Infrastructure", toolComponent: "TerraformScannerTool",    tags: ["cloud", "terraform"] },
+  { num: 38, act: 6, title: "Logging, Monitoring & IR",      slug: "logging-monitoring",  actLabel: "Act V — Cloud & Infrastructure", toolComponent: "LogInjectorTool",         tags: ["cloud", "siem", "incident-response"] },
 
   // ── Act VI — Supply Chain (act 7) ────────────────────────
-  { num: 38, act: 7, title: "Dependency Confusion",          slug: "dep-confusion",       actLabel: "Act VI — Supply Chain",        toolComponent: "DepResolverTool",         tags: ["supply-chain", "typosquatting"] },
-  { num: 39, act: 7, title: "SCA & CVE Triage",              slug: "sca",                 actLabel: "Act VI — Supply Chain",        toolComponent: "SBOMExplorerTool",        tags: ["supply-chain", "cve"] },
-  { num: 40, act: 7, title: "CI/CD Pipeline Security",       slug: "cicd",                actLabel: "Act VI — Supply Chain",        toolComponent: "PipelineDAGTool",         tags: ["supply-chain", "ci-cd"] },
-  { num: 41, act: 7, title: "Code Signing & SLSA",           slug: "slsa",                actLabel: "Act VI — Supply Chain",        toolComponent: "ProvenanceChainTool",     tags: ["supply-chain", "slsa"] },
-  { num: 42, act: 7, title: "Security Testing & Tooling",    slug: "sec-tooling",         actLabel: "Act VI — Supply Chain",        toolComponent: "SASTRuleBuilderTool",     tags: ["tooling", "sast", "dast"] },
+  { num: 39, act: 7, title: "Dependency Confusion",          slug: "dep-confusion",       actLabel: "Act VI — Supply Chain",        toolComponent: "DepResolverTool",         tags: ["supply-chain", "typosquatting"] },
+  { num: 40, act: 7, title: "SCA & CVE Triage",              slug: "sca",                 actLabel: "Act VI — Supply Chain",        toolComponent: "SBOMExplorerTool",        tags: ["supply-chain", "cve"] },
+  { num: 41, act: 7, title: "CI/CD Pipeline Security",       slug: "cicd",                actLabel: "Act VI — Supply Chain",        toolComponent: "PipelineDAGTool",         tags: ["supply-chain", "ci-cd"] },
+  { num: 42, act: 7, title: "Code Signing & SLSA",           slug: "slsa",                actLabel: "Act VI — Supply Chain",        toolComponent: "ProvenanceChainTool",     tags: ["supply-chain", "slsa"] },
+  { num: 43, act: 7, title: "Security Testing & Tooling",    slug: "sec-tooling",         actLabel: "Act VI — Supply Chain",        toolComponent: "SASTRuleBuilderTool",     tags: ["tooling", "sast", "dast"] },
 ] as const;
 
 export const ACT_COLORS: Record<number, string> = {
