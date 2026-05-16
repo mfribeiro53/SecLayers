@@ -1,6 +1,12 @@
-# Foundry — Design & Architecture Guide
+# SecLayers — Design & Architecture Guide
 
-A comprehensive reference for replicating or adapting this educational app template. Every section explains *what* exists, *where* it lives, *how* it is structured, and *why* it is done that way.
+A living reference **and reusable design template** for this codebase. Every section explains *what* exists, *where* it lives, *how* it is structured, and *why* it is done that way. Template callouts show how to adapt each pattern for a new educational domain.
+
+Update this document whenever a pattern changes, a new system is added, or a convention is established.
+
+> **Current state:** 2026-05-16 · 43 chapters · 229 glossary terms · 10 CTF labs  
+> **Template substitution variables** (replace when forking):  
+> `APP_NAME` = SecLayers · `DOMAIN` = AppSec · `ACT_COUNT` = 8 · `CHAPTER_COUNT` = 44
 
 ---
 
@@ -9,130 +15,127 @@ A comprehensive reference for replicating or adapting this educational app templ
 1. [Project Overview & Stack](#1-project-overview--stack)
 2. [Repository Layout](#2-repository-layout)
 3. [Theme & Design System](#3-theme--design-system)
-4. [Global Layout](#4-global-layout)
+4. [Global Layout & Shell](#4-global-layout--shell)
 5. [Application State (AppContext)](#5-application-state-appcontext)
-6. [Chapter System](#6-chapter-system)
-7. [Chapter Shell & Navigation](#7-chapter-shell--navigation)
-8. [Chapter Content Components](#8-chapter-content-components)
-9. [Interview & Misconception System](#9-interview--misconception-system)
-10. [Interactive Tools System](#10-interactive-tools-system)
-11. [Glossary](#11-glossary)
-12. [Final Exam Page](#12-final-exam-page)
-13. [Home Page](#13-home-page)
-14. [Backend API](#14-backend-api)
+6. [Topic System](#6-topic-system)
+7. [Chapter Pages (MDX)](#7-chapter-pages-mdx)
+8. [Chapter Shell & Navigation](#8-chapter-shell--navigation)
+9. [Content Components (Callout, DepthBlock, CodeBlock)](#9-content-components)
+10. [Interview & Misconception System](#10-interview--misconception-system)
+11. [Interactive Tools System](#11-interactive-tools-system)
+12. [CTF Labs System](#12-ctf-labs-system)
+13. [Glossary](#13-glossary)
+14. [Exam Page](#14-exam-page)
 15. [Data Files & Schemas](#15-data-files--schemas)
 16. [Key Conventions & Pitfalls](#16-key-conventions--pitfalls)
+17. [Adding a New Chapter — Checklist](#17-adding-a-new-chapter--checklist)
+18. [Forking for a New Domain — Template Guide](#18-forking-for-a-new-domain--template-guide)
 
 ---
 
 ## 1. Project Overview & Stack
 
-**Foundry** is a full-stack interactive educational app. The frontend is a Next.js 15 (App Router) TypeScript app. The backend is a Python FastAPI server that streams real ML training events via Server-Sent Events (SSE).
+**SecLayers** is a purely client-side interactive AppSec learning platform. There is no backend. All computation (tool logic, lab exploit simulation, interview questions, glossary) runs in the browser.
 
-### Frontend dependencies
+### Stack
 
-| Package | Purpose |
+| Layer | Technology |
 |---|---|
-| `next` 15 | App Router, SSG, dynamic imports |
-| `react` 19 | UI |
-| `tailwindcss` v4 | Utility-class styling |
-| `lucide-react` | Icon set used everywhere |
-| `katex` | Math rendering |
-| `d3` | Custom charts in tools |
-| `plotly.js` + `react-plotly.js` | 3D scatter plots (e.g. Embedding Space) |
-| `chart.js` + `react-chartjs-2` | 2D charts (e.g. loss curves) |
-| `gpt-tokenizer`, `llama-tokenizer-js`, `@anthropic-ai/tokenizer` | In-browser tokenizer tools |
-| `@huggingface/transformers` | In-browser model inference |
-| `clsx` | Conditional className utility |
+| Framework | Next.js 15, App Router, TypeScript |
+| Styling | Tailwind CSS v4 + CSS custom properties |
+| MDX | `next-mdx-remote/rsc` (server component rendering) |
+| MDX plugins | `remark-gfm`, `remark-math`, `rehype-katex`, `rehype-highlight` |
+| Icons | `lucide-react` |
+| Font | `Inter` via `next/font/google` |
 
-### Backend dependencies
+### Key design decisions
 
-| Package | Purpose |
-|---|---|
-| `fastapi` | HTTP framework |
-| `uvicorn` | ASGI server |
-| `torch` | Model training & inference |
-| `sse-starlette` | Server-Sent Events streaming |
-| `tokenizers` | HuggingFace tokenizer library |
-| `pydantic` | Request/response validation |
+- **No backend.** Everything is either statically generated or runs in the browser. Avoids infrastructure cost and latency.
+- **MDX for chapter prose.** Writers edit Markdown; custom components (`<Callout>`, `<DepthBlock>`, `<CodeBlock>`) are available as JSX.
+- **Tools are dynamic imports with `ssr: false`.** Prevents hydration errors from canvas, `window`, and `document` APIs.
+- **Content and code are colocated.** Each chapter's MDX, interview JSON, and tool component share a common slug as their identifier.
 
-### Dev & build
-
-```
-make setup   # creates backend/.venv, installs pip + npm deps
-make dev     # runs backend (port 8000) and frontend (port 3000) concurrently
-make backend # uvicorn main:app --reload --port 8000
-make frontend # next dev --turbopack
-```
+> **Template note:** This stack works for any educational domain. Replace AppSec content with your domain (e.g. ML, DevOps, Systems Design). The only domain-specific parts are the CSS act colors, the `TOPICS` array, and the content files — the shell, routing, and component patterns are generic.
 
 ---
 
 ## 2. Repository Layout
 
 ```
-/
-├── backend/
-│   ├── main.py              # FastAPI app, router mounting, CORS
-│   ├── requirements.txt
-│   ├── data/
-│   │   └── shakespeare.txt  # Training data for Pretraining Lab
-│   ├── models/
-│   │   ├── nano_gpt.py      # Tiny GPT (2-layer, 2-head, 64-dim)
-│   │   ├── lora_adapter.py  # LoRA fine-tuning wrapper
-│   │   └── reward_model.py  # Bradley-Terry reward model
-│   └── routers/
-│       ├── pretraining.py   # SSE: train a tiny GPT live
-│       ├── sft.py           # SSE: supervised fine-tuning
-│       ├── reward.py        # SSE: reward model training
-│       ├── rlhf.py          # SSE: DPO/PPO training
-│       ├── evaluation.py    # Eval metric endpoints
-│       ├── architecture.py  # Parameter count calculations
-│       ├── inference.py     # Inference simulation
-│       ├── engine.py        # Engine architecture data
-│       └── tokenization.py  # Tokenizer endpoints
+SecLayer/
+├── app/
+│   ├── layout.tsx               # Root layout — Sidebar + TopNav + footer shell
+│   ├── globals.css              # CSS variables, .prose styles, .tool-surface, semantic utils
+│   ├── page.tsx                 # Home page (static)
+│   ├── [slug]/
+│   │   ├── page.tsx             # Chapter page — MDX rendering + ChapterShell
+│   │   ├── loading.tsx          # Skeleton shown while chapter MDX loads
+│   │   └── tool/
+│   │       ├── page.tsx         # Tool page — ToolIntro + ToolRenderer + ToolHelpButton
+│   │       └── loading.tsx
+│   ├── glossary/
+│   │   └── page.tsx             # Full searchable glossary (client component)
+│   ├── labs/
+│   │   ├── page.tsx             # Labs listing page
+│   │   └── [slug]/
+│   │       └── page.tsx         # Individual CTF lab
+│   ├── exam/
+│   │   └── page.tsx             # Final exam (shuffled interview questions)
+│   ├── error.tsx                # Error boundary
+│   └── not-found.tsx            # 404 page
 │
-├── frontend/
-│   ├── app/
-│   │   ├── layout.tsx       # Root layout — Sidebar + TopNav shell
-│   │   ├── page.tsx         # Home page
-│   │   ├── globals.css      # CSS variables + chapter-prose styles
-│   │   ├── stages/
-│   │   │   └── [stage]/
-│   │   │       └── page.tsx # Dynamic chapter route
-│   │   └── <tool-name>/
-│   │       └── page.tsx     # One file per interactive tool
-│   ├── components/
-│   │   ├── ui/              # Shared layout primitives
-│   │   │   ├── AppContext.tsx
-│   │   │   ├── Sidebar.tsx
-│   │   │   ├── TopNav.tsx
-│   │   │   ├── GlossaryPanel.tsx
-│   │   │   ├── ToolsModal.tsx
-│   │   │   ├── ToolIntro.tsx
-│   │   │   ├── ToolHelpButton.tsx
-│   │   │   ├── Callout.tsx
-│   │   │   ├── CodeBlock.tsx
-│   │   │   ├── DepthBlock.tsx
-│   │   │   └── Math.tsx
-│   │   ├── stages/          # Chapter content + shell
-│   │   │   ├── ChapterShell.tsx
-│   │   │   ├── Ch01Intro.tsx … Ch18Safety.tsx
-│   │   ├── interview/
-│   │   │   ├── InterviewCard.tsx
-│   │   │   └── MisconceptionCard.tsx
-│   │   └── tools/           # One component per interactive tool
-│   │       └── AttentionVisualizerTool.tsx … (38 tools)
-│   ├── lib/
-│   │   ├── chapters.ts      # Single source of truth for all chapters
-│   │   ├── dataPipeline.ts
-│   │   ├── embeddings.ts
-│   │   └── scaling.ts
-│   └── content/
-│       ├── glossary.json
-│       └── interview_questions/
-│           └── index.json
+├── components/
+│   ├── layout/
+│   │   └── ChapterShell.tsx     # Chapter wrapper: header, prose, misconception, tool link, nav
+│   ├── ui/
+│   │   ├── AppContext.tsx        # Global React context + localStorage hydration
+│   │   ├── Sidebar.tsx          # Left nav: acts, chapters, progress
+│   │   ├── TopNav.tsx           # Sticky header: depth, interview mode, tools button, glossary
+│   │   ├── GlossaryPanel.tsx    # Slide-in glossary panel (keyboard shortcut: g)
+│   │   ├── ToolsModal.tsx       # Full-screen tool catalog
+│   │   ├── ToolIntro.tsx        # Standard tool page header (summary + quick-start)
+│   │   ├── ToolHelpButton.tsx   # Help modal for tools (goal / steps / lookFor)
+│   │   ├── ToolRenderer.tsx     # Dynamic-import registry for all tool components
+│   │   ├── ToolShell.tsx        # Optional card wrapper for tool content areas
+│   │   ├── Callout.tsx          # MDX callout box (insight / warning / danger / info)
+│   │   ├── DepthBlock.tsx       # Beginner/advanced content gating
+│   │   ├── CodeBlock.tsx        # Syntax-highlighted code block with copy button
+│   │   ├── InterviewCard.tsx    # Interview questions accordion (interview mode)
+│   │   └── MisconceptionCard.tsx # Myth/reality card rendered below every chapter
+│   ├── tools/                   # 43 interactive tool components (one per chapter)
+│   └── labs/                    # 10 CTF lab components + _shared.tsx
 │
-└── Makefile
+├── lib/
+│   ├── topics.ts                # TOPICS array + ACT_* color maps + helper functions
+│   ├── tool-meta/               # Tool metadata split by act (summary, quickStart, help)
+│   │   ├── index.ts             # Merges all act files into TOOL_META record
+│   │   ├── types.ts             # ToolMeta / ToolHelp interfaces
+│   │   ├── prologue.ts
+│   │   ├── foundations.ts
+│   │   ├── web.ts
+│   │   ├── api.ts
+│   │   ├── mobile.ts
+│   │   ├── systems.ts
+│   │   ├── cloud.ts
+│   │   └── supply-chain.ts
+│   └── labs.ts                  # LAB_REGISTRY + groupLabsByAct helper
+│
+├── content/
+│   ├── chapters/                # One .mdx file per chapter (named by slug)
+│   │   ├── threat-modeling.mdx
+│   │   ├── sql-injection.mdx
+│   │   └── … (43 total)
+│   ├── interview/               # One .json file per chapter (named by slug)
+│   │   ├── threat-modeling.json
+│   │   ├── sql-injection.json
+│   │   └── … (43 total)
+│   └── glossary.json            # 229 AppSec terms with definitions and act mapping
+│
+├── types/
+│   └── index.ts                 # Shared TypeScript interfaces (Topic, GlossaryEntry, etc.)
+│
+├── DESIGN_GUIDE.md              # This file
+└── Seclayers_plan.md            # Product roadmap and chapter planning doc
 ```
 
 ---
@@ -141,818 +144,839 @@ make frontend # next dev --turbopack
 
 ### CSS custom properties (`app/globals.css`)
 
+All colors use CSS variables. Never hardcode hex values in components — use the variables.
+
 ```css
 :root {
-  --background: #09090e;   /* Near-black page background */
-  --foreground: #e8e8f0;   /* Off-white default text */
-  --card:       #111118;   /* Card surfaces */
-  --card-border:#1e1e2e;   /* Card borders */
-  --muted:      #8888aa;   /* Muted/secondary text */
+  /* Surfaces */
+  --bg-page:       #0b1020;   /* Near-black page background */
+  --bg-surface:    #111628;   /* Card surface */
+  --bg-surface-2:  #161c32;   /* Slightly lighter card */
+  --bg-elevated:   #1a2140;   /* Inputs, chips, elevated elements */
+  --border-subtle: #1f2742;   /* Default border */
+  --border-strong: #2a335b;   /* Emphasis border */
+
+  /* Text */
+  --text-primary:   #e6e9f5;  /* Main text */
+  --text-secondary: #aab0c6;  /* Prose, descriptions */
+  --text-muted:     #6d748d;  /* Labels, timestamps, hints */
+
+  /* Brand */
+  --accent:      #6366f1;               /* Indigo — links, focus rings, CTAs */
+  --accent-soft: rgba(99,102,241,0.15); /* Accent tint for backgrounds */
+
+  /* Act accent colors — one per security domain */
+  --act-attacker:    #f59e0b;  /* Amber   — Prologue */
+  --act-foundations: #94a3b8;  /* Slate   — Foundations */
+  --act-web:         #60a5fa;  /* Blue    — Act I Web */
+  --act-api:         #a78bfa;  /* Violet  — Act II API */
+  --act-mobile:      #34d399;  /* Emerald — Act III Mobile */
+  --act-systems:     #fb923c;  /* Orange  — Act IV Systems */
+  --act-cloud:       #fb7185;  /* Rose    — Act V Cloud */
+  --act-supply-chain:#22d3ee;  /* Cyan    — Act VI Supply Chain */
 }
 ```
 
-These are registered with Tailwind v4's `@theme inline` block and used as `bg-[var(--background)]` or directly in inline styles.
+### Act color system
 
-### Font setup
+The 44 topics are grouped into 8 acts (0–7). Each act has an accent color used in the chapter header, sidebar, tags, and tool UI. The mapping lives in `lib/topics.ts`.
 
-Two Geist fonts from `next/font/google`:
-- `Geist` → `--font-geist-sans` → default body font
-- `Geist_Mono` → `--font-geist-mono` → code, mono elements
-
-Applied in `layout.tsx`:
-```tsx
-<body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-```
-
-### Color palette: the Act system
-
-The 18 chapters are split into 4 "Acts". Each act has its own accent color. All color maps live in `lib/chapters.ts` and are imported everywhere:
+> **Template note:** Acts are your top-level subject groupings. Choose one color per group. The act number (0–N) is the only thing that needs to change — all downstream UI derives from it automatically.
 
 ```ts
-// lib/chapters.ts
+// The string key maps to the --act-* CSS variable name
+export const ACT_COLORS: Record<number, string> = {
+  0: "attacker",      // Prologue
+  1: "foundations",
+  2: "web",
+  3: "api",
+  4: "mobile",
+  5: "systems",
+  6: "cloud",
+  7: "supply-chain",
+};
+
+// Tailwind text / bg / border classes for act-colored UI
 export const ACT_TEXT: Record<number, string> = {
-  1: "text-blue-400",     // Act I — Foundations
-  2: "text-violet-400",   // Act II — The Transformer
-  3: "text-emerald-400",  // Act III — Making It Useful
-  4: "text-orange-400",   // Act IV — Real-World Deployment
+  0: "text-amber-400",
+  1: "text-slate-400",
+  2: "text-blue-400",
+  3: "text-violet-400",
+  4: "text-emerald-400",
+  5: "text-orange-400",
+  6: "text-rose-400",
+  7: "text-cyan-400",
 };
 
-export const ACT_BG: Record<number, string> = {
-  1: "bg-blue-900/30",
-  2: "bg-violet-900/30",
-  3: "bg-emerald-900/30",
-  4: "bg-orange-900/30",
-};
-
-export const ACT_BORDER: Record<number, string> = {
-  1: "border-blue-500/40",
-  2: "border-violet-500/40",
-  3: "border-emerald-500/40",
-  4: "border-orange-500/40",
-};
+export const ACT_BG:     Record<number, string> = { … };  // bg-*-900/30
+export const ACT_BORDER: Record<number, string> = { … };  // border-*-500/40
 ```
 
-**Usage pattern:** anywhere you render a chapter-specific UI element, do:
+**Usage pattern:** anywhere you need the act CSS variable value inline:
 ```tsx
-import { ACT_BG, ACT_BORDER, ACT_TEXT } from "@/lib/chapters";
-<div className={`${ACT_BG[act]} ${ACT_BORDER[act]}`}>…</div>
+const actColor = `var(--act-${ACT_COLORS[topic.act]})`;
+// e.g. var(--act-web) → #60a5fa
 ```
 
-### Chapter prose CSS class
+For Tailwind classes (sidebar, chapter headers):
+```tsx
+<div className={`${ACT_BG[topic.act]} ${ACT_BORDER[topic.act]}`}>…</div>
+```
 
-All chapter content is wrapped in `<div className="chapter-prose space-y-2">`. This class is defined in `globals.css` and sets:
+### Prose styles (`.prose`)
 
-- `h2`: 1.35rem, bold, bottom-border separator
-- `h3`: 1.05rem, semi-bold
-- `p`, `li`: `color: #b8b8d0`, `line-height: 1.8`
-- `strong`: full foreground color
+Chapter MDX content is wrapped in `<div className="prose max-w-none">`. The `.prose` class is defined entirely in `globals.css` (not Tailwind Typography) and applies dark-mode aware styles for:
 
-### Inline code
+- `h1–h4`, `p`, `strong`, `em`, `a`, `ul`, `ol`, `li`, `hr`
+- `blockquote` → rendered as a left-bordered callout with `--accent`
+- Inline `code` → lavender (`#c4b5fd`), dark background, border
+- `pre code` → `github-dark` from highlight.js, dark bg `#0d1117`
+- Tables → rounded, dark header row, alternating hover
 
-Bare `<code>` tags (not inside a `<pre>`) get auto-styled via:
+One intentional quirk: `h1:first-child { display: none }` — the chapter title is already displayed in the `<ChapterShell>` header card, so the H1 from the MDX file is suppressed to avoid duplication.
+
+### `.tool-surface` class
+
+Interactive tool components apply `tool-surface` to their container div. This class remaps light-mode Tailwind utilities to dark-mode equivalents without modifying every individual class:
+
 ```css
-code:not([class]) {
-  background: #1a1a28;
-  border: 1px solid #2a2a40;
-  color: #a5b4fc;  /* indigo-300 */
-  border-radius: 0.3em;
-  font-size: 0.87em;
+/* Inputs */
+.tool-surface input, .tool-surface select, .tool-surface textarea {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
 }
+
+/* Remaps: bg-blue-600 → var(--accent), bg-red-600 → #ef4444, etc. */
+.tool-surface .bg-blue-600 { background-color: var(--accent); }
 ```
 
-### Scrollbar
+This allows reusing standard Tailwind color classes in tools without them rendering incorrectly on the dark background.
 
-Custom 6 px scrollbar, dark-themed, applied globally via `::-webkit-scrollbar` rules in `globals.css`.
+### Semantic tint utilities
 
-### Math display blocks
+Instead of `bg-red-50 text-red-800` (light-mode), use the semantic utility classes from `globals.css`:
 
-`.math-block` class (used by `<BlockMath>`) gives KaTeX equations a dark card look:
-```css
-.math-block {
-  background: #0d0d16;
-  border: 1px solid #1e1e35;
-  border-radius: 0.75rem;
-  padding: 1rem 1.25rem;
-  overflow-x: auto;
-}
 ```
+.bg-danger-subtle   .border-danger-subtle   .text-danger
+.bg-success-subtle  .border-success-subtle  .text-success
+.bg-warning-subtle  .border-warning-subtle  .text-warning
+.bg-info-subtle     .border-info-subtle     .text-info
+.bg-orange-subtle   .bg-purple-subtle       .bg-cyan-subtle  …
+```
+
+These are RGBA values that work correctly on dark surfaces.
 
 ---
 
-## 4. Global Layout
+## 4. Global Layout & Shell
 
-The root layout (`app/layout.tsx`) builds a three-panel shell:
+`app/layout.tsx` builds the full-screen shell:
 
 ```
-┌─────────────┬──────────────────────────────────────┐
-│             │  TopNav (sticky, h-14)                │
-│  Sidebar    ├──────────────────────────────────────┤
-│  (w-64)     │                                       │
-│             │  <main>  (flex-1, overflow-auto)      │
-│             │  {children}                           │
-└─────────────┴──────────────────────────────────────┘
-                    [GlossaryPanel — fixed overlay]
+┌─────────────────┬────────────────────────────────────────┐
+│                 │  TopNav (sticky, h-14)                  │
+│  Sidebar        ├────────────────────────────────────────┤
+│  (w-64)         │                                         │
+│                 │  <main>  (flex-1, overflow-auto)        │
+│                 │  {children}                             │
+│                 ├────────────────────────────────────────┤
+│                 │  Footer (copyright, shrink-0)           │
+└─────────────────┴────────────────────────────────────────┘
+                       [GlossaryPanel — fixed overlay]
 ```
 
 ```tsx
-// app/layout.tsx
 <AppProvider>
+  <a href="#main-content" className="sr-only focus:not-sr-only …">Skip to main content</a>
   <div className="flex h-screen overflow-hidden">
     <Sidebar />
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       <TopNav />
-      <main className="flex-1 overflow-auto">
-        {children}
-      </main>
+      <main id="main-content" className="flex-1 overflow-auto">{children}</main>
+      <footer className="shrink-0 py-2 px-6 text-center text-xs …">…</footer>
     </div>
   </div>
-  <GlossaryPanel />   {/* fixed overlay, outside the flex layout */}
+  <GlossaryPanel />
 </AppProvider>
 ```
 
-**Critical CSS:** the outer div uses `overflow-hidden` to lock the viewport so only `<main>` scrolls. If you forget `overflow-hidden` on the outer div, the sidebar and TopNav will scroll with the content.
+**Critical:** `overflow-hidden` on the outer flex container is intentional. Without it, the page scrolls as a whole and the sidebar/TopNav scroll away. Only `<main>` should scroll.
 
 ### Sidebar (`components/ui/Sidebar.tsx`)
 
-```
-w-64 | bg-gray-950 | border-r border-gray-800
-```
-
-Sections from top to bottom:
-1. **Logo block** — emoji + app name + tagline, links to `/`
-2. **Progress bar** — `completedChapters.size / CHAPTERS.length`, gradient blue→violet→emerald
-3. **Chapter nav** — chapters grouped by Act, each with `ACT_TEXT` label; active link has `border-l-2` + act-colored background; completed chapters show `<CheckCircle>` (act color), incomplete show `<Circle>` (gray)
-4. **Bottom links** — Vocab Builder, Glossary, Final Exam
-
-Active link detection: `usePathname() === "/stages/${ch.num}"`.
+Fixed left panel, `w-64`. From top to bottom:
+1. **Logo** — app name + tagline, links to `/`
+2. **Progress bar** — `completedTopics.size / TOPICS.length`, color based on percentage
+3. **Chapter list** — grouped by act with act-color label. Active chapter: `border-l-2` in act color. Completed: checkmark icon.
+4. **Bottom links** — Glossary, Labs, Exam
 
 ### TopNav (`components/ui/TopNav.tsx`)
 
-```
-sticky top-0 z-40 | bg-gray-950/95 backdrop-blur | h-14
-```
+Sticky header, `z-40`. Three zones:
 
-Three sections:
+| Zone | Content |
+|---|---|
+| Left | Depth mode segmented control (`beginner` / `advanced`) |
+| Center | Interview mode toggle + difficulty buttons (`junior` / `mid` / `senior`) |
+| Right | Tools catalog button (opens `ToolsModal`) + Glossary button (opens `GlossaryPanel`) |
 
-**Left — Depth mode segmented control:**
-- `beginner` → blue-600 active state
-- `advanced` → violet-600 active state
-- First-visit tooltip from localStorage (`llm-journey-depth-tooltip-seen` key)
-
-**Center — Interview mode + difficulty:**
-- Toggle switch (pill, amber when active)
-- Three-button difficulty segmented (Internship / MLE / Research), disabled + dimmed when interview mode is off
-- Active difficulty → amber-500 background, black text
-
-**Right — Tools + Glossary buttons:**
-- Opens `ToolsModal` (state local to TopNav)
-- Opens `GlossaryPanel` (state in AppContext)
-- Glossary button shows `G` keyboard shortcut chip
+The `G` keyboard shortcut chip on the glossary button reflects the actual `g` key shortcut registered in `GlossaryPanel.tsx`.
 
 ---
 
 ## 5. Application State (AppContext)
 
-All global state lives in `components/ui/AppContext.tsx` via React Context.
+`components/ui/AppContext.tsx` — React context wrapping the entire app.
 
 ```ts
 interface AppState {
-  // Content depth
   depthMode: "beginner" | "advanced";
   setDepthMode: (v: DepthMode) => void;
 
-  // Interview mode
   interviewMode: boolean;
   setInterviewMode: (v: boolean) => void;
 
-  // Interview difficulty (only relevant when interviewMode is true)
-  difficulty: "internship" | "mlEngineer" | "researcher";
+  difficulty: "junior" | "mid" | "senior";
   setDifficulty: (v: Difficulty) => void;
 
-  // Chapter progress (persisted to localStorage)
-  completedChapters: Set<number>;
-  markChapterComplete: (n: number) => void;
+  completedTopics: Set<number>;        // chapter nums, persisted
+  markTopicComplete: (n: number) => void;
 
-  // Glossary panel
   glossaryOpen: boolean;
   setGlossaryOpen: (v: boolean) => void;
 }
 ```
 
-**localStorage keys:**
-- `llmj-completed` — JSON array of completed chapter numbers
-- `llm-journey-depth-tooltip-seen` — `"1"` once the depth tooltip has been dismissed
+**localStorage key:** `seclayers-completed` — JSON array of completed chapter `num` values.
 
-**Usage:** any component that needs app state imports `useApp()`:
+Hydrated once on mount via `useEffect`. The `Set` is serialized as `JSON.stringify([...set])` and deserialized as `new Set(JSON.parse(saved))`.
+
 ```tsx
 import { useApp } from "@/components/ui/AppContext";
-const { depthMode, interviewMode, difficulty } = useApp();
+const { depthMode, interviewMode, difficulty, completedTopics } = useApp();
 ```
 
-`useApp()` throws if called outside `<AppProvider>`, providing a clear error message.
+`useApp()` throws if called outside `<AppProvider>`, with a clear error message.
 
 ---
 
-## 6. Chapter System
+## 6. Topic System
 
-### The `CHAPTERS` array (`lib/chapters.ts`)
+### `TOPICS` array (`lib/topics.ts`)
 
-This is the **single source of truth** for all chapter metadata. Every sidebar entry, chapter header, tool badge, glossary link, and static route is derived from this array.
+The **single source of truth** for all chapter metadata. Every route, sidebar entry, tool page, and exam question derives from this array.
+
+> **Template note:** This is the first file to populate when creating a new educational app. Define your acts and chapters here before writing any content. Every other system (routing, sidebar, tool pages, glossary filters, exam) auto-derives from this array.
 
 ```ts
-export const CHAPTERS = [
-  { num: 1,  act: 1, title: "What is an LLM?",           slug: "intro",         actLabel: "Act I — Foundations" },
-  { num: 2,  act: 1, title: "Math Primer",                slug: "math-primer",   actLabel: "Act I — Foundations" },
-  // ... 18 entries total
+export const TOPICS: Topic[] = [
+  { num: 0,  act: 0, title: "The Attacker's Mindset", slug: "attacker-mindset",
+    actLabel: "Prologue",  toolComponent: "KillChainPlannerTool",  tags: ["kill-chain", "recon"] },
+  { num: 1,  act: 1, title: "Threat Modeling with STRIDE", slug: "threat-modeling",
+    actLabel: "Foundations", toolComponent: "DfdBuilderTool", tags: ["stride", "design"] },
+  // … 43 entries total (num 0–43)
 ] as const;
 ```
 
-Fields:
-- `num` — chapter number (1–18), used in URLs (`/stages/1`) and as localStorage keys
-- `act` — act number (1–4), drives the color system
-- `title` — display name in sidebar, chapter header, breadcrumbs
-- `slug` — kebab-case identifier; tools reference their chapter by `chapterSlug` matching this field
-- `actLabel` — human-readable act label shown in the chapter header
+**Fields:**
+
+| Field | Type | Purpose |
+|---|---|---|
+| `num` | number | Chapter number (0 = Prologue, 1–43 = chapters). Used in localStorage and nav. |
+| `act` | number | Act group (0–7). Drives all color theming. |
+| `title` | string | Display name in sidebar, header, breadcrumbs. |
+| `slug` | string | Kebab-case ID. Used in URLs (`/[slug]`), MDX filenames, interview JSON filenames. |
+| `actLabel` | string | Human-readable act label for the chapter header. |
+| `toolComponent` | string | Name of the React component in `ToolRenderer.tsx` and the key in `TOOL_META`. |
+| `tags` | string[] | Tag chips shown in the chapter header card. |
+
+### Helper functions
+
+```ts
+getTopicBySlug(slug: string): Topic | undefined
+getAdjacentTopics(slug: string): { current, prev, next } | null
+```
 
 ### Static route generation
 
-The chapter page at `app/stages/[stage]/page.tsx` generates all 18 pages at build time:
-
+The chapter page uses:
 ```ts
 export function generateStaticParams() {
-  return CHAPTERS.map((c) => ({ stage: String(c.num) }));
+  return TOPICS.map((topic) => ({ slug: topic.slug }));
 }
 ```
 
-If a number doesn't match a chapter, Next.js returns 404 via `notFound()`.
+Same pattern for the tool page (`/[slug]/tool`), filtered to only topics with a `TOOL_META` entry.
 
 ---
 
-## 7. Chapter Shell & Navigation
+## 7. Chapter Pages (MDX)
 
-`components/stages/ChapterShell.tsx` is the wrapper rendered by every chapter page. It receives `{ num, title, act }` and handles:
+**Route:** `app/[slug]/page.tsx` — a server component.
 
-### Chapter header
+### Loading flow
+
+```
+1. params.slug → getAdjacentTopics() → topic, prev, next
+2. fs.readFile("content/chapters/{slug}.mdx") — chapter prose
+3. fs.readFile("content/interview/{slug}.json") — interview questions
+4. parseMisconceptionSection(rawSource) — strips the ## Misconception section
+   from the MDX (rendered separately in MisconceptionCard)
+5. MDXRemote renders the remaining source with remarkGfm, remarkMath,
+   rehypeKatex, rehypeHighlight, and the custom component map
+6. ChapterShell receives: topic, misconception, interviewQuestions, prev, next
+```
+
+### MDX component map
+
+Only three custom components are available in chapter MDX files:
+
+| Component | Usage |
+|---|---|
+| `<Callout kind="info|warning|danger|insight">` | Callout boxes |
+| `<DepthBlock label="...">` | Advanced-only collapsible content |
+| `<CodeBlock language="..." title="...">` | Copy-button code block |
+
+Everything else is standard Markdown rendered via `.prose` CSS.
+
+### Misconception extraction
+
+Every chapter MDX file should end with a `## Misconception` (or `## Common Misconception`) section in one of two formats:
+
+```markdown
+## Misconception
+
+**Myth:** "The myth text"
+
+**Reality:** The corrected reality…
+```
+
+or (used in some supply chain chapters):
+```markdown
+## Misconception
+
+**"The myth text"** The corrected reality…
+```
+
+The server parses this section out of the MDX source before rendering, strips it, and passes `{ myth, reality }` to `ChapterShell` so `MisconceptionCard` can render it in its own styled container.
+
+### Fallback for missing MDX
+
+If `content/chapters/{slug}.mdx` doesn't exist, the page renders a placeholder paragraph. The chapter still appears in the sidebar and routing still works.
+
+---
+
+## 8. Chapter Shell & Navigation
+
+`components/layout/ChapterShell.tsx` — a client component (needs `useApp()`).
+
+### Layout
+
+```
+<article max-w-4xl mx-auto px-6 py-10>
+  ├── <header>   Chapter header card (act color, title, tags, depth badge)
+  ├── <div .prose>   MDX content (children)
+  ├── <section>  MisconceptionCard
+  ├── <section>  Tool link → /{slug}/tool
+  ├── <section>  InterviewCard (only if interviewMode && questions.length > 0)
+  └── <nav>      Prev / Mark Complete / Next
+```
+
+### Chapter header card
 
 ```tsx
-<div className={`mb-8 p-6 rounded-2xl border ${ACT_BORDER[act]} ${ACT_BG[act]}`}>
-  <div className={`text-xs font-semibold uppercase tracking-widest mb-1 ${ACT_TEXT[act]}`}>
-    Chapter {num}
+<header className={`mb-8 p-6 rounded-2xl border ${actBg} ${actBorder}`}>
+  <div className={`text-xs font-semibold uppercase tracking-widest mb-1 ${actText}`}>
+    {ACT_LABELS[topic.act]} · Chapter {topic.num}
   </div>
-  <h1 className="text-3xl font-bold text-white">{title}</h1>
-  {/* Act label + depth mode badge + interview mode badge */}
-</div>
+  <h1 style={{ color: "var(--text-primary)" }}>{topic.title}</h1>
+  {/* Tag chips + depth badge */}
+</header>
 ```
 
-### Lazy-loaded chapter content
+Tag chips and the depth badge both use `color-mix()` against the act color variable for consistent theming.
 
-Chapter components are loaded via `next/dynamic` so the initial bundle stays small:
+### Tool link
 
-```ts
-const chapterComponents: Record<number, ComponentType> = {
-  1:  dynamic(() => import("./Ch01Intro")),
-  2:  dynamic(() => import("./Ch02MathPrimer")),
-  // ...
-};
-```
-
-At render time: `const ChapterContent = chapterComponents[num]; <ChapterContent />`.
-
-### Misconceptions (always shown)
-
+Every chapter has a prominent link to its tool at the bottom of the prose:
 ```tsx
-<MisconceptionCard chapterNum={num} />
-```
-
-Always rendered below chapter content regardless of interview mode.
-
-### Interview questions (conditional)
-
-```tsx
-{interviewMode && <InterviewCard chapterNum={num} />}
-```
-
-Only rendered when interview mode is enabled in AppContext.
-
-### Bottom navigation bar
-
-```
-← Ch.N Previous Title    [Mark Complete / Completed]    Ch.N+1 Next Title →
-```
-
-- Previous/next chapter links derived from `CHAPTERS.find(c => c.num === num ± 1)`
-- "Mark Complete" button calls `markChapterComplete(num)` which persists to localStorage
-- "Completed" state: `bg-emerald-900/40 border-emerald-500/40 text-emerald-400`
-- Next button: always `bg-blue-600 hover:bg-blue-500` (not act-colored)
-
-### Outer container
-
-All chapter pages use `max-w-4xl mx-auto px-6 py-10` for the content width.
-
----
-
-## 8. Chapter Content Components
-
-Each chapter file (e.g. `Ch01Intro.tsx`) is a pure presentational React component. It composes these building blocks:
-
-### `<Callout variant="..." title="...">` (`components/ui/Callout.tsx`)
-
-Colored callout boxes for in-line prose annotations:
-
-| `variant` | Color | Icon | Default label |
-|---|---|---|---|
-| `insight` | indigo | Lightbulb | "Key Insight" |
-| `warning` | amber | AlertTriangle | "Watch Out" |
-| `info` | sky | Info | "Note" |
-| `paper` | emerald | BookOpen | "Seminal Paper" |
-
-```tsx
-<Callout variant="insight">
-  The chain rule isn't a simplification — it's mathematically exact.
-</Callout>
-
-<Callout variant="warning" title="Common Trap">
-  Avoid thinking of attention as memory storage.
-</Callout>
-```
-
-Structure: `rounded-xl border`, icon on left, label + content on right.
-
-### `<DepthBlock label="...">` (`components/ui/DepthBlock.tsx`)
-
-Wraps content that is only appropriate for Advanced depth mode.
-
-- **Advanced mode**: always visible, with a violet left border (`border-l-2 border-violet-600/40`) and a tiny "Advanced" label
-- **Beginner mode**: collapsed; a `▶ Show [label]` toggle reveals it
-
-```tsx
-<DepthBlock label="why decoder-only won over encoder-decoder">
-  <p>Encoder-decoder splits computation: a bidirectional encoder…</p>
-</DepthBlock>
-```
-
-Any content that should only appear in advanced mode lives inside `<DepthBlock>`. This is how the same chapter file serves two audiences.
-
-### `<CodeBlock code="..." language="python" title="...">` (`components/ui/CodeBlock.tsx`)
-
-Dark-themed code block with a copy button:
-- Background: `#0a0a14`
-- Header bar: `#0d0d1a` with language/title label in `#5555aa`
-- Text: `#c0c8ff` (cool lavender-white)
-- Copy → check icon, 2s timeout
-
-```tsx
-<CodeBlock
-  language="python"
-  title="cross_entropy.py"
-  code={`loss = F.cross_entropy(logits, targets)`}
-/>
-```
-
-### `<InlineMath math="...">` and `<BlockMath math="...">` (`components/ui/Math.tsx`)
-
-KaTeX wrappers using `useEffect` + `ref`:
-```tsx
-<InlineMath math="p(x_t \mid x_{<t})" />
-<BlockMath math="\prod_{t=1}^{T} p(x_t \mid x_1, \ldots, x_{t-1})" />
-```
-
-`BlockMath` applies the `.math-block` CSS class (dark card, scrollable). Both use `throwOnError: false` so a bad LaTeX string shows a fallback rather than crashing.
-
-### Inline `<code>` tags
-
-Inside chapter prose, use `<code className="text-indigo-300">someSymbol</code>` for inline code that needs a specific color override (the global CSS auto-applies the box styles to unstyled `<code>`).
-
-### Info grids
-
-Chapters frequently use ad-hoc grid layouts for comparison tables:
-```tsx
-<div className="grid gap-3 my-4 md:grid-cols-3">
-  {items.map((item) => (
-    <div key={item.name} className={`border rounded-xl p-4 ${item.color}`}>
-      <div className={`text-xs font-bold uppercase tracking-wider mb-2 ${item.badge}`}>{item.name}</div>
-      <div className="text-gray-400 text-xs space-y-1">…</div>
-    </div>
-  ))}
-</div>
-```
-
-No separate component — these are inlined where needed.
-
----
-
-## 9. Interview & Misconception System
-
-### Data source
-
-Both components read from `content/interview_questions/index.json`.
-
-**Schema:**
-```json
-[
-  {
-    "chapter": 1,
-    "questions": [
-      {
-        "question": "What is next-token prediction…?",
-        "answers": {
-          "internship": "Next-token prediction means…",
-          "mlEngineer":  "The model is trained with cross-entropy loss…",
-          "researcher":  "Next-token prediction is equivalent to learning…"
-        },
-        "wrongAnswers": [
-          "\"The model memorizes the training data\"…",
-          "\"It learns by labeled classification\"…"
-        ]
-      }
-    ],
-    "misconceptions": [
-      {
-        "myth": "LLMs understand language the way humans do",
-        "reality": "LLMs are statistical models that predict tokens…"
-      }
-    ]
-  }
-]
-```
-
-Key points:
-- Every chapter entry has a `chapter` number matching the chapter system
-- Every question has exactly 3 answer tiers: `internship`, `mlEngineer`, `researcher`
-- `wrongAnswers` is an array of strings (may be empty)
-- `misconceptions` is optional (only show `MisconceptionCard` when non-empty)
-
-### `<InterviewCard chapterNum={num}>` (`components/interview/InterviewCard.tsx`)
-
-Rendered only when `interviewMode === true` in AppContext. Container styling:
-```
-bg-amber-950/20 | border border-amber-500/20 | rounded-2xl | p-6
-```
-
-- Header: `<GraduationCap>` icon + "Interview Questions" + difficulty badge
-- Each question: bordered card (`border border-gray-700 rounded-xl`)
-- Question button: full-width, left text, chevron right
-- Revealed answer: `bg-gray-900/50` background, difficulty-tier label, answer HTML, optional "Common Wrong Answers" red box
-
-**Tier color map:**
-```ts
-const TIER_COLOR: Record<Tier, string> = {
-  internship: "text-green-400 border-green-500/30 bg-green-900/10",
-  mlEngineer: "text-blue-400 border-blue-500/30 bg-blue-900/10",
-  researcher: "text-purple-400 border-purple-500/30 bg-purple-900/10",
-};
-```
-
-The answer is rendered with `dangerouslySetInnerHTML` to allow basic HTML formatting in the JSON (bold tags, etc.).
-
-### `<MisconceptionCard chapterNum={num}>` (`components/interview/MisconceptionCard.tsx`)
-
-Always rendered below chapter content (regardless of interview mode). Container:
-```
-bg-red-950/20 | border border-red-500/20 | rounded-2xl | p-6
-```
-
-Each misconception: `✗` in red, myth in `text-red-300`, reality in `text-gray-400`.
-
----
-
-## 10. Interactive Tools System
-
-### Architecture overview
-
-Each tool is a three-layer stack:
-1. **Page** (`app/<tool-name>/page.tsx`) — layout container, `ToolIntro`, `ToolHelpButton`
-2. **Tool component** (`components/tools/<Name>Tool.tsx`) — the actual interactive UI
-3. **`ToolsModal`** — the global catalog of all tools, accessible from TopNav
-
-### Tool pages
-
-Every tool page follows the same template:
-
-```tsx
-// app/attention/page.tsx
-"use client";
-import dynamic from "next/dynamic";
-import ToolIntro from "@/components/ui/ToolIntro";
-import ToolHelpButton from "@/components/ui/ToolHelpButton";
-
-// Dynamic import to avoid SSR issues with canvas/WebGL/browser APIs
-const AttentionVisualizerTool = dynamic(
-  () => import("@/components/tools/AttentionVisualizerTool"),
-  { ssr: false, loading: () => <div className="…">Loading...</div> }
-);
-
-export default function AttentionVisualizerPage() {
-  return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <ToolIntro
-        chapter={5}
-        chapterTitle="Attention"
-        title="Attention Visualizer"
-        accent="violet"
-        summary={<>…</>}
-        quickStart={[
-          { text: <>…</> },
-          { text: <>…</> },
-        ]}
-      />
-      <AttentionVisualizerTool />
-      <div className="mt-6">
-        <ToolHelpButton goal={<>…</>} steps={[…]} lookFor={<>…</>}>
-          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600/15 border border-violet-500/30 text-violet-400 …">
-            <Info className="w-3.5 h-3.5" /> How to use this tool
-          </span>
-        </ToolHelpButton>
-      </div>
-    </div>
-  );
-}
-```
-
-Container width for tools is `max-w-6xl` (wider than chapters' `max-w-4xl`).
-
-### `<ToolIntro>` (`components/ui/ToolIntro.tsx`)
-
-Standard header block placed at the top of every tool page:
-
-```ts
-interface ToolIntroProps {
-  chapter: number;          // Links to /stages/{chapter}
-  chapterTitle: string;     // Breadcrumb text
-  title: string;            // H1
-  accent?: "fuchsia" | "violet" | "emerald" | "blue" | "cyan" | "amber" | "rose" | "indigo";
-  summary: ReactNode;       // 1-3 sentence description
-  details?: ReactNode;      // Optional second paragraph (smaller, gray)
-  quickStart?: QuickStartStep[];  // "Try this in 30 seconds" checklist
-  chapterAnchor?: string;   // Optional #anchor on the chapter link
-}
-```
-
-**Accent colors** each resolve to a `{ text, border, bg, chip }` set of Tailwind classes. The accent drives:
-- Breadcrumb chip color (`Chapter 5 · Attention · Interactive`)
-- H1 color
-- Quick-start box border/background
-
-**Quick-start box:** numbered steps in the accent color, displayed in a bordered card beneath the summary.
-
-### `<ToolHelpButton>` (`components/ui/ToolHelpButton.tsx`)
-
-A help icon that opens a modal via `createPortal`:
-
-```ts
-interface ToolHelpButtonProps {
-  goal: ReactNode;       // "What this tool teaches" section
-  steps: HelpStep[];     // Numbered "How to use it" list
-  lookFor?: ReactNode;   // Optional "What to look for" section
-  children: ReactNode;   // The trigger element (button/span)
-}
-```
-
-Modal structure:
-- Sticky header: `HelpCircle` icon + "How to use this tool"
-- Section 1 (blue label): "What this tool teaches" — `goal`
-- Section 2 (emerald label): "How to use it" — ordered list of `steps`
-- Section 3 (amber label, optional): "What to look for" — `lookFor`
-
-The trigger (`children`) is rendered in normal document flow; the modal is portaled to `document.body` to escape `overflow-hidden` stacking contexts. Closes on backdrop click or `Escape`.
-
-### `ToolsModal` (`components/ui/ToolsModal.tsx`)
-
-A full-screen catalog of every tool, opened from TopNav.
-
-**The `TOOLS` array** at the top of `ToolsModal.tsx` is the authoritative list of all tools. Each entry:
-```ts
-interface Tool {
-  href: string;           // Route, e.g. "/attention"
-  name: string;           // Display name
-  description: string;    // One-paragraph description
-  icon: LucideIcon;       // Lucide icon component
-  chapterSlug: ChapterSlug; // Matches slug in CHAPTERS array
-}
-```
-
-At render time, each tool is enriched with chapter metadata by looking up `chapterSlug` in `CHAPTERS`. This is important: **the TOOLS array does not store chapter numbers directly** — it references slugs, so if you renumber chapters, only `chapters.ts` needs updating.
-
-Tools are grouped by act using the same `ACT_TEXT`, `ACT_BG`, `ACT_BORDER` maps.
-
-Modal structure:
-- Fixed overlay `z-[100]` with `bg-black/70 backdrop-blur-sm`
-- `max-w-5xl` centered panel
-- Sticky header with title + close button
-- Per-act sections with numbered list items
-
-Each tool card:
-```
-[two-digit step number]
-[icon in act-colored box]   [Tool Name]  [Ch N · Title badge]
-                            [description in gray-400]
-```
-
-The tool name links to the tool route; the chapter badge links to `/stages/{num}`.
-
-### Tool component patterns
-
-Tool components (`components/tools/`) are vanilla React client components. Common patterns:
-
-- **State**: `useState` for all interactive controls
-- **Computation**: `useMemo` for expensive derived values
-- **Canvas/SVG**: inline `<svg>` or `<canvas>` with `useEffect` for D3
-- **Plotly**: `react-plotly.js` with `ssr: false` on the import
-- **Seeded randomness**: tools that need deterministic "fake" data use a custom `seededRand(seed)` function (mulitply-xorshift), so results are reproducible across renders
-- **Backend calls**: streaming tools (Pretraining Lab, SFT Lab, etc.) use `EventSource` (SSE) to fetch from `http://localhost:8000/<router>/train`
-
----
-
-## 11. Glossary
-
-The glossary has two surfaces: a **slide-in panel** (global, keyboard-shortcut accessible) and a **dedicated page**.
-
-### Data source (`content/glossary.json`)
-
-```json
-[
-  {
-    "term": "Attention",
-    "definition": "A mechanism that allows each token to look at all other tokens…",
-    "chapter": 5,
-    "slug": "attention"
-  }
-]
-```
-
-`chapter` is a number matching the chapter system. `slug` is unused currently but included for future use.
-
-### `<GlossaryPanel>` (`components/ui/GlossaryPanel.tsx`)
-
-A right-side slide-in panel, `fixed inset-0 z-50`, rendered only when `glossaryOpen === true` in AppContext.
-
-- **Backdrop**: `bg-black/50`, clicking closes panel
-- **Panel**: `w-full max-w-md h-full` from right, `bg-gray-950 border-l border-gray-800`
-- **Keyboard shortcut**: `g` key opens it (when no input is focused), `Escape` closes it
-- **Search**: fuzzy search over `term` and `definition` fields
-- **A-Z jump rail**: right-side vertical nav with single-letter buttons; disabled letters are dimmed
-- **Letter sections**: sticky `h3` letter headers with `bg-gray-950/95 backdrop-blur`
-- Each term links to its chapter with `Ch.{n}` badge and hover `ExternalLink` icon
-
-### Glossary page (`app/glossary/page.tsx`)
-
-Static server component. Groups terms by chapter number, renders each group as a `<section>` with:
-- Chapter heading that links to `/stages/{ch}` 
-- Grid of term cards: `bg-gray-900 border border-gray-800 rounded-xl p-4`
-
----
-
-## 12. Final Exam Page
-
-`app/exam/page.tsx` — a pure client component that builds a quiz from interview data.
-
-**How it works:**
-1. Builds a flat pool of all questions across all chapters at the current difficulty tier
-2. Fisher-Yates shuffles the pool, takes first 30 (configurable via `EXAM_SIZE`)
-3. Shows one question at a time
-4. User clicks "Reveal Answer" → sees the model answer + wrong answers
-5. Self-marks correct/incorrect
-6. On completion: shows score, per-chapter breakdown table
-
-**No backend** — entirely client-side from the JSON data.
-
----
-
-## 13. Home Page
-
-`app/page.tsx` — static server component.
-
-Three sections:
-1. **Hero**: emoji, title, tagline, two CTA buttons (Start Ch.1 → blue-600, Glossary → gray-800)
-2. **Feature pills**: rounded pill chips in `bg-gray-900 border border-gray-800`, listing key capabilities
-3. **Chapter grid**: grouped by act, `sm:grid-cols-2 lg:grid-cols-4` grid of chapter cards
-
-Chapter cards:
-```tsx
-<Link className={`group relative p-4 rounded-xl border ${ACT_BORDER[act]} ${ACT_BG[act]} hover:brightness-125 transition-all`}>
-  <div className="text-gray-500 text-xs mb-1">Chapter {ch.num}</div>
-  <div className="text-white text-sm font-medium">{ch.title}</div>
-  <ArrowRight className="absolute right-3 top-1/2 … opacity-0 group-hover:opacity-100" />
+<Link href={`/${topic.slug}/tool`} …>
+  <span style={{ background: actColor }} />
+  Interactive Tool
+  <span style={{ color: actColor }}>Open →</span>
 </Link>
 ```
 
-The `hover:brightness-125` trick works well with semi-transparent `bg-*-900/30` backgrounds — it brightens them on hover without needing separate hover colors.
+### Mark Complete
+
+Calls `markTopicComplete(topic.num)` from AppContext, which adds the num to `completedTopics` and persists to localStorage. The button is non-reversible (no "un-mark").
 
 ---
 
-## 14. Backend API
+## 9. Content Components
 
-`backend/main.py` sets up FastAPI with CORS allowing `localhost:3000` and `localhost:3001`, then mounts routers under prefixes.
+### `<Callout>` (`components/ui/Callout.tsx`)
 
-### Router structure
+Four kinds, each with a distinct icon, accent color, and label:
 
-Each router file exports an `APIRouter` and registers endpoints. Example streaming endpoint:
+| `kind` | Color | Icon | Default label |
+|---|---|---|---|
+| `insight` | Chapter accent (inherits `--chapter-accent`) | Lightbulb | "Key Insight" |
+| `warning` | Amber `#fbbf24` | Triangle | "Warning" |
+| `danger` | Red `#f87171` | Circle-exclamation | "Critical" |
+| `info` | Cyan `#67e8f9` | Circle-i | "Note" |
 
-```python
-# backend/routers/pretraining.py
-@router.get("/train")
-async def train_stream(warmup_steps: int = 20):
-    async def event_generator():
-        # ... train NanoGPT for 200 steps ...
-        for step in range(max_steps):
-            # ... compute loss ...
-            yield {"data": json.dumps({"step": step, "loss": loss_val, "sample": sample})}
-            await asyncio.sleep(0)  # yield to event loop
-    return EventSourceResponse(event_generator())
+```mdx
+<Callout kind="warning">
+  Never use MD5 for password hashing.
+</Callout>
+
+<Callout kind="info" title="RFC 6238">
+  TOTP generates a 6-digit code every 30 seconds.
+</Callout>
 ```
 
-Frontend connects with:
+The `insight` kind uses `var(--chapter-accent, #a5b4fc)` — this CSS variable would be set per chapter if chapter-level theming is added in the future. Currently falls back to indigo.
+
+### `<DepthBlock>` (`components/ui/DepthBlock.tsx`)
+
+Wraps advanced content. In beginner mode it renders a `▶ Show [label]` toggle. In advanced mode it always shows with a subtle left border.
+
+```mdx
+<DepthBlock label="why ECDHE gives forward secrecy">
+  Each TLS handshake generates an ephemeral key pair…
+</DepthBlock>
+```
+
+### `<CodeBlock>` (`components/ui/CodeBlock.tsx`)
+
+Dark code block with a copy-to-clipboard button. Used in MDX when you need a titled block or copy functionality. Plain fenced code blocks (` ``` `) are handled by rehype-highlight and styled via `.prose pre`.
+
+```mdx
+<CodeBlock language="python" title="vuln.py" code={`
+import pickle
+pickle.loads(user_data)  # arbitrary code execution
+`} />
+```
+
+### `<ToolShell>` (`components/ui/ToolShell.tsx`)
+
+Optional wrapper for tool content panels. Adds a header bar with title, optional description, and an "IN-BROWSER" badge. Inner content gets the `.tool-surface` class.
+
+```tsx
+<ToolShell title="Stack Frame Visualizer" description="Call a function to see its frame">
+  {/* tool UI */}
+</ToolShell>
+```
+
+---
+
+## 10. Interview & Misconception System
+
+### Data source: per-chapter JSON files
+
+Each chapter has its own file at `content/interview/{slug}.json`. The schema is a flat array:
+
 ```ts
-const es = new EventSource("http://localhost:8000/pretraining/train");
-es.onmessage = (e) => {
-  const { step, loss, sample } = JSON.parse(e.data);
-  // update state
+// types/index.ts
+interface InterviewQuestion {
+  id: string;          // e.g. "sqli-junior-01"
+  question: string;
+  answer: string;      // Markdown-formatted long answer
+  category: "junior" | "mid" | "senior";
+}
+```
+
+```json
+[
+  {
+    "id": "sqli-junior-01",
+    "question": "What is SQL injection and how does it work?",
+    "answer": "SQL injection inserts malicious SQL into…",
+    "category": "junior"
+  }
+]
+```
+
+**Convention:** 2 questions per category (6 total per chapter), id format: `{slug-prefix}-{category}-{nn}`.
+
+The chapter page loads this file server-side, parses it, and passes the array as `interviewQuestions` to `ChapterShell`.
+
+### `<InterviewCard>` (`components/ui/InterviewCard.tsx`)
+
+Rendered only when `interviewMode === true` in AppContext AND the chapter has questions. Reads `difficulty` from AppContext to filter displayed questions.
+
+```
+Container: rounded-2xl, amber tint
+├── Header: "Interview Questions" + difficulty badge
+└── Questions filtered to current difficulty
+    Each question: collapsible card
+    ├── Question text (button to expand)
+    └── Answer (MDX-like text with markdown formatting)
+```
+
+Difficulty colors:
+```ts
+{ junior: "text-green-400", mid: "text-blue-400", senior: "text-purple-400" }
+```
+
+### `<MisconceptionCard>` (`components/ui/MisconceptionCard.tsx`)
+
+Always shown below chapter prose, regardless of interview mode. Receives `{ myth, reality }` extracted from the MDX file by the server page component.
+
+```
+Container: rounded-2xl, red tint
+├── "✗" in red — myth text in text-red-300
+└── "→" — reality text in text-secondary
+```
+
+---
+
+## 11. Interactive Tools System
+
+### Architecture
+
+Each tool is a three-layer stack:
+
+```
+/[slug]/tool (page.tsx)
+  └── ToolIntro          — summary + quick-start steps
+  └── ToolRenderer       — dynamic import of the actual tool component
+  └── ToolHelpButton     — "How to use this tool" modal
+```
+
+### Tool metadata (`lib/tool-meta/`)
+
+Tool metadata is defined separately from the tool components, split into one file per act. Each file exports a partial `Record<string, ToolMeta>`:
+
+```ts
+// lib/tool-meta/types.ts
+interface ToolHelp {
+  goal: string;       // One sentence: what skill this tool teaches
+  steps: string[];    // Ordered "how to use it" steps
+  lookFor?: string;   // Optional: what to notice / what it means
+}
+
+interface ToolMeta {
+  summary: string;       // One-sentence description (shown in ToolIntro)
+  quickStart: string[];  // 3-4 "Try this first" bullet steps
+  help?: ToolHelp;       // Optional help modal content
+}
+```
+
+All act files are merged in `lib/tool-meta/index.ts`:
+```ts
+export const TOOL_META: Record<string, ToolMeta> = {
+  ...prologueMeta,
+  ...foundationsMeta,
+  ...webMeta,
+  ...apiMeta,
+  ...mobileMeta,
+  ...systemsMeta,
+  ...cloudMeta,
+  ...supplyChainMeta,
 };
 ```
 
-### NanoGPT model (`backend/models/nano_gpt.py`)
+The key in `TOOL_META` must exactly match the `toolComponent` field in `TOPICS`.
 
-Deliberately tiny: `n_layer=2, n_head=2, n_embd=64, block_size=64`. Trains on Shakespeare in <30 seconds on CPU.
+### Tool page (`app/[slug]/tool/page.tsx`)
 
-### Graceful degradation
+A server component. Static params generated from `TOPICS` filtered to entries where `TOOL_META[topic.toolComponent]` exists (i.e., tool is implemented). If no meta exists, returns 404.
 
-The main app wraps ML router imports in a try/except:
-```python
-try:
-    from routers import pretraining, sft, reward, rlhf, evaluation, architecture, inference, engine
-    _ml_routers = True
-except ModuleNotFoundError:
-    _ml_routers = False
+```tsx
+<div className="px-6 lg:px-12 py-8 max-w-5xl mx-auto w-full">
+  <ToolIntro topic={topic} summary={meta.summary} quickStart={meta.quickStart} />
+  <ToolRenderer toolComponent={topic.toolComponent} />
+  {meta?.help && <ToolHelpButton goal={…} steps={…} lookFor={…}>…</ToolHelpButton>}
+</div>
 ```
 
-If PyTorch is not installed, only the tokenization router loads. The app won't crash — the ML-backed tools just won't stream real training data.
+Tool pages use `max-w-5xl` (wider than chapter prose `max-w-4xl`).
+
+### `ToolRenderer` (`components/ui/ToolRenderer.tsx`)
+
+A client component holding the `TOOLS` dynamic import registry:
+
+```ts
+const TOOLS: Record<string, React.ComponentType> = {
+  KillChainPlannerTool: dynamic(() => import("@/components/tools/KillChainPlannerTool"), { ssr: false }),
+  DfdBuilderTool:       dynamic(() => import("@/components/tools/DfdBuilderTool"),       { ssr: false }),
+  // … one entry per tool component
+};
+
+export function ToolRenderer({ toolComponent }: { toolComponent: string }) {
+  const Tool = TOOLS[toolComponent];
+  if (!Tool) return null;
+  return <Tool />;
+}
+```
+
+**Critical:** every tool import must use `ssr: false`. Tools access browser APIs (`window`, `canvas`, `document`) that fail during server rendering.
+
+### `<ToolIntro>` (`components/ui/ToolIntro.tsx`)
+
+Standard header block at the top of every tool page. Renders:
+- Act label + chapter number breadcrumb (links to `/{slug}`)
+- Chapter title
+- Tool summary sentence
+- Quick-start numbered list in a bordered card
+
+### `<ToolHelpButton>` (`components/ui/ToolHelpButton.tsx`)
+
+Help icon that opens a `createPortal` modal with three sections:
+- **Goal** — what skill this tool teaches
+- **Steps** — ordered how-to list
+- **Look for** (optional) — what patterns to notice
+
+Uses the `mounted` guard pattern to avoid SSR errors:
+```tsx
+const [mounted, setMounted] = useState(false);
+useEffect(() => setMounted(true), []);
+if (!mounted) return null;
+return createPortal(<Modal />, document.body);
+```
+
+### Tool component patterns
+
+Tool components (`components/tools/`) are plain React client components. Common patterns:
+
+- **State:** `useState` for all controls; `useMemo` for expensive derived values
+- **Colors:** Use CSS variables (`var(--accent)`, `var(--bg-surface)`, etc.) or semantic utility classes
+- **Styling:** Apply `tool-surface` class to the root container (or use `<ToolShell>`)
+- **Dark-mode inputs:** Inherit from `.tool-surface` — no per-input dark styles needed
+- **Act color:** Many tools highlight act-specific elements using `var(--act-${ACT_COLORS[act]})` passed from the tool page, or hardcode the act color for their specific chapter
+
+### `ToolsModal` (`components/ui/ToolsModal.tsx`)
+
+Full-screen catalog of all tools, opened from TopNav. Groups tools by act using the same color maps. Each entry links to `/{slug}/tool`.
+
+---
+
+## 12. CTF Labs System
+
+Labs are fully client-side exploit simulations — no real backend, no real vulnerabilities.
+
+### Data source (`lib/labs.ts`)
+
+```ts
+interface Lab {
+  slug: string;
+  title: string;
+  objective: string;   // One-sentence goal shown on the listing card
+  act: number;         // Which act this lab belongs to
+  difficulty: "easy" | "medium" | "hard";
+  tags: string[];
+}
+
+export const LAB_REGISTRY: Lab[] = [ … ];
+export function groupLabsByAct(): Record<number, Lab[]> { … }
+```
+
+### Routes
+
+- `/labs` — listing page, groups labs by act, links to `/labs/[slug]`
+- `/labs/[slug]` — individual lab rendered by `LabRenderer`
+
+### Lab components (`components/labs/`)
+
+Each lab is a standalone React component. A shared `_shared.tsx` exports reusable primitives (flag display, hint system, submit button).
+
+`LabRenderer` (`components/labs/LabRenderer.tsx`) routes by slug:
+```ts
+const LABS: Record<string, React.ComponentType> = {
+  "sqli-basic":    SQLiLabTool,
+  "xss-reflected": XSSLabTool,
+  // …
+};
+```
+
+### Current labs
+
+| Slug | Topic |
+|---|---|
+| `sqli-basic` | SQL injection — UNION-based flag extraction |
+| `xss-reflected` | Reflected XSS — script injection |
+| `csrf-token` | CSRF — token bypass |
+| `idor-object` | IDOR — horizontal privilege escalation |
+| `broken-api` | Broken API auth |
+| `graphql-introspection` | GraphQL schema leakage |
+| `mobile-storage` | Insecure storage flag |
+| `mobile-tls` | TLS misconfiguration |
+| `mobile-intent` | Intent hijacking |
+
+---
+
+## 13. Glossary
+
+### Data source (`content/glossary.json`)
+
+```ts
+// types/index.ts
+interface GlossaryEntry {
+  term: string;
+  definition: string;
+  relatedTopics: string[];   // Array of chapter slugs
+  act: number;               // 1–7 — drives the act filter on the glossary page
+}
+```
+
+Terms do not need to be sorted — both the page and the panel sort alphabetically at runtime.
+
+**Current size:** 229 terms across all 8 acts.
+
+### Glossary page (`app/glossary/page.tsx`)
+
+Client component with:
+- **Search input** — fuzzy match on `term`, `definition`, and `relatedTopics`
+- **Act filter pills** — one per act; active pill shows act color as background
+- **Term cards** — `relatedTopics` slugs rendered as monospace chips that link to `/{slug}`
+
+### `<GlossaryPanel>` (`components/ui/GlossaryPanel.tsx`)
+
+Right-side slide-in panel, `fixed inset-0 z-50`. Toggled by:
+- The "Glossary" button in TopNav
+- The `g` key (when no input is focused)
+- `Escape` to close
+
+The panel has its own search input and A-Z jump navigation.
+
+---
+
+## 14. Exam Page
+
+`app/exam/page.tsx` — pure client component.
+
+**How it works:**
+1. Loads all interview JSON files (imported statically at build time via a barrel or dynamic `require`)
+2. Filters by current `difficulty` from AppContext
+3. Fisher-Yates shuffles, takes first 30 questions
+4. Shows one at a time; user clicks "Reveal Answer" then self-marks correct/incorrect
+5. Completion: score + per-chapter breakdown
+
+No backend. No answer verification. Self-assessment only.
 
 ---
 
 ## 15. Data Files & Schemas
 
-### `content/glossary.json`
+### `lib/topics.ts`
 
-Array of term objects:
 ```ts
-{ term: string; definition: string; chapter: number; slug: string }
-```
-
-Terms do not need to be sorted — the `GlossaryPanel` sorts alphabetically at runtime.
-
-### `content/interview_questions/index.json`
-
-Array of chapter objects:
-```ts
-{
-  chapter: number;
-  questions: Array<{
-    question: string;
-    answers: {
-      internship: string;
-      mlEngineer: string;
-      researcher: string;
-    };
-    wrongAnswers: string[];  // may be empty array
-  }>;
-  misconceptions: Array<{    // may be absent or empty
-    myth: string;
-    reality: string;
-  }>;
+interface Topic {
+  num: number;           // Chapter number (0–43)
+  act: number;           // Act number (0–7)
+  title: string;
+  slug: string;          // URL slug and file name base
+  actLabel: string;      // e.g. "Act I — Web Security"
+  toolComponent: string; // Key in TOOL_META and ToolRenderer
+  tags: readonly string[];
 }
 ```
 
-**Important:** not every chapter needs to appear in the file. `InterviewCard` and `MisconceptionCard` do a `.find()` and return `null` if no data exists for that chapter.
+### `content/chapters/{slug}.mdx`
+
+Standard Markdown + GFM + math. Available custom components: `<Callout>`, `<DepthBlock>`, `<CodeBlock>`. Must end with a `## Misconception` section — the server parser strips it and passes it to `MisconceptionCard`.
+
+### `content/interview/{slug}.json`
+
+```ts
+Array<{
+  id: string;          // "{slug-prefix}-{category}-{nn}"
+  question: string;
+  answer: string;      // Multi-paragraph markdown string
+  category: "junior" | "mid" | "senior";
+}>
+```
+
+Convention: 2 questions per category, 6 total per chapter.
+
+### `content/glossary.json`
+
+```ts
+Array<{
+  term: string;
+  definition: string;
+  relatedTopics: string[];   // Chapter slugs
+  act: number;               // 0–7
+}>
+```
+
+### `lib/tool-meta/{act}.ts`
+
+```ts
+Record<string, {
+  summary: string;
+  quickStart: string[];
+  help?: {
+    goal: string;
+    steps: string[];
+    lookFor?: string;
+  };
+}>
+```
 
 ---
 
 ## 16. Key Conventions & Pitfalls
 
-### 1. The `chapters.ts` file is the single source of truth
+### 1. `lib/topics.ts` is the single source of truth
 
-Never hardcode chapter numbers, titles, or act labels elsewhere. Import from `@/lib/chapters`. The tools modal, sidebar, glossary page, exam, and chapter shell all reference this file.
+Never hardcode chapter numbers, slugs, or act labels anywhere else. The sidebar, tool pages, chapter pages, static params, and exam all derive from `TOPICS`. If you add a chapter, add it here first.
 
-### 2. Tool `chapterSlug` must match `chapters.ts`
+### 2. `toolComponent` is the join key across three systems
 
-In `ToolsModal.tsx`, each tool entry has a `chapterSlug` that is looked up against `CHAPTERS`. If it doesn't match any slug, a runtime error is thrown:
+The string in `topic.toolComponent` must match:
+- The key in `ToolRenderer`'s `TOOLS` record (dynamic import)
+- The key in `TOOL_META` (from `lib/tool-meta/`)
+- The component name exported from `components/tools/`
+
+If any of these three are out of sync, the tool page returns 404 or renders nothing.
+
+### 3. Tool imports must use `ssr: false`
+
+Tools use browser APIs. Dynamic import with `{ ssr: false }` prevents Next.js from trying to render them on the server. Forgetting this causes hydration errors or build failures.
+
+### 4. MDX components must be explicitly passed
+
+`MDXRemote` in `app/[slug]/page.tsx` receives a `components` prop:
 ```ts
-if (!chapter) throw new Error(`ToolsModal: unknown chapterSlug "${tool.chapterSlug}"`);
+components={{ Callout, DepthBlock, CodeBlock }}
+```
+A component used in MDX but not registered here will render as plain text. New content components must be added here.
+
+### 5. The `## Misconception` section is stripped from MDX
+
+The chapter page server-parses the MDX source before rendering and removes the final `## Misconception` section. Do not render it a second time inside the prose — it will be empty or absent.
+
+### 6. Interview question `category` maps to `difficulty` in AppContext
+
+The JSON uses `"junior" | "mid" | "senior"`. The AppContext `difficulty` state uses the same values. `InterviewCard` filters `questions.filter(q => q.category === difficulty)`.
+
+### 7. Tool pages use `max-w-5xl`, chapter pages use `max-w-4xl`
+
+Tool UIs need more horizontal space. Stick to this convention.
+
+### 8. Act CSS variable pattern
+
+When you need the act color as an inline style value:
+```tsx
+const actColor = `var(--act-${ACT_COLORS[topic.act]})`;
+style={{ color: actColor, borderColor: actColor }}
 ```
 
-When adding a new tool, add it to `TOOLS` in `ToolsModal.tsx` with the correct slug.
+When you need Tailwind classes: use `ACT_TEXT[act]`, `ACT_BG[act]`, `ACT_BORDER[act]`.
 
-### 3. Tool components must use `ssr: false`
+Do not mix the two approaches in the same element.
 
-Tools that use browser APIs (canvas, WebGL, `window`, `EventSource`, Plotly) must be dynamically imported with `ssr: false`:
-```ts
-const MyTool = dynamic(() => import("@/components/tools/MyTool"), { ssr: false });
-```
+### 9. Semantic utility classes for tool UI colors
 
-`ToolHelpButton` uses `createPortal` and also needs `const [mounted, setMounted] = useState(false); useEffect(() => setMounted(true), []);` before portaling.
+Inside tool components, use `.bg-danger-subtle`, `.text-danger`, etc. from `globals.css` instead of light-mode Tailwind tint classes (`bg-red-50 text-red-800`). Those tint classes don't read on dark backgrounds.
 
-### 4. Modal portaling pattern
+### 10. Modal portaling pattern
 
-Both `ToolsModal` and `ToolHelpButton` use `createPortal(jsx, document.body)` to escape `overflow-hidden` clipping. The `mounted` state guard prevents SSR errors:
+Both `ToolsModal` and `ToolHelpButton` use `createPortal(jsx, document.body)` to escape `overflow-hidden` stacking contexts. Requires the `mounted` guard:
 ```tsx
 const [mounted, setMounted] = useState(false);
 useEffect(() => { setMounted(true); }, []);
@@ -960,61 +984,288 @@ if (!mounted) return null;
 return createPortal(<Modal />, document.body);
 ```
 
-### 5. `overflow-hidden` on the root layout shell
+### 11. Keyboard shortcuts
 
-The outer `<div className="flex h-screen overflow-hidden">` in `layout.tsx` is intentional. Without it, the full page would scroll, not just the main area. This is the most common mistake when replicating the shell.
+| Key | Action | Registered in |
+|---|---|---|
+| `g` | Open GlossaryPanel | `GlossaryPanel.tsx` |
+| `Escape` | Close any open modal/panel | Each modal/panel individually |
 
-### 6. Act color maps are imported, not inlined
+Both check that no input element is currently focused before firing.
 
-Always import `ACT_TEXT`, `ACT_BG`, `ACT_BORDER` from `@/lib/chapters` — never hardcode `"text-blue-400"` conditionally. This ensures consistency if act colors ever change.
+### 12. Progress is stored by chapter `num`, not slug
 
-### 7. `depthMode` gates content — not pages
-
-Advanced and beginner content coexists in the same chapter component file. `<DepthBlock>` wraps anything that should be hidden/collapsed in beginner mode. This is simpler than maintaining two separate page variants.
-
-### 8. Interview difficulty is read from context
-
-`InterviewCard` reads `difficulty` from `useApp()`, not from props. This means it automatically reflects whatever the user has set in the TopNav — you don't need to thread difficulty as a prop through `ChapterShell`.
-
-### 9. Chapters use `max-w-4xl`, tools use `max-w-6xl`
-
-Tools need more horizontal space for charts and controls. All tool pages use `max-w-6xl mx-auto px-6 py-8`. Chapter pages use `max-w-4xl mx-auto px-6 py-10`.
-
-### 10. Progress persistence uses a `Set<number>` in state
-
-The `completedChapters` is a React `Set<number>`. When persisting to localStorage, it's serialized as `JSON.stringify([...set])` and deserialized as `new Set(JSON.parse(saved))`. The `Set` is recreated immutably on each `markChapterComplete` call (`new Set(prev).add(n)`).
-
-### 11. Backend CORS is localhost-only
-
-CORS is configured for `localhost:3000` and `localhost:3001` only. For production deployment, update `allow_origins` in `main.py`.
-
-### 12. The `ToolIntro` `accent` prop drives all color in the header
-
-Pick one accent per tool and use it consistently for the `ToolIntro` header AND the `ToolHelpButton` trigger button color. This creates a per-tool color identity without needing to style anything else.
-
-### 13. `dangerouslySetInnerHTML` in InterviewCard
-
-Answer text in `index.json` can contain HTML tags (e.g. `<strong>`, `<code>`). The `InterviewCard` renders answers with `dangerouslySetInnerHTML`. Keep the JSON content trusted (it's a static build asset, not user input).
-
-### 14. Keyboard shortcuts
-
-- `g` → open GlossaryPanel (registered in `GlossaryPanel.tsx`)
-- `Escape` → close any modal/panel (each modal registers its own listener)
-
-Both handlers check that no input is focused before firing, preventing interference while the user types in a tool.
+`completedTopics` is a `Set<number>` of topic `num` values. If a chapter is ever renumbered, existing localStorage data will be stale. Prefer adding chapters at the end of an act.
 
 ---
 
-## Quick-start checklist for a new educational app
+## 17. Adding a New Chapter — Checklist
 
-- [ ] Copy `lib/chapters.ts` structure and populate with your own chapter data
-- [ ] Set up the same 4-level color map (`ACT_TEXT`, `ACT_BG`, `ACT_BORDER`) for your subject areas
-- [ ] Copy `globals.css` (CSS vars, chapter-prose, math-block, scrollbar)
-- [ ] Copy `layout.tsx` shell (Sidebar + TopNav + main + GlossaryPanel)
-- [ ] Copy `AppContext.tsx` and remove/add modes you need
-- [ ] Create your `content/glossary.json` and `content/interview_questions/index.json`
-- [ ] Create chapter content components using `Callout`, `DepthBlock`, `CodeBlock`, `Math`
-- [ ] Create tool pages using `ToolIntro` + `ToolHelpButton` + dynamic tool component
-- [ ] Register tools in the `TOOLS` array in `ToolsModal.tsx`
-- [ ] Add static route generation to `app/stages/[stage]/page.tsx`
-- [ ] Set up the `ChapterShell` with your chapter navigation logic
+Follow this order to avoid broken states:
+
+- [ ] **`lib/topics.ts`** — add entry to `TOPICS` at the correct position. Assign `num`, `act`, `slug`, `toolComponent`, `tags`. If inserting mid-list, renumber subsequent entries.
+- [ ] **`content/chapters/{slug}.mdx`** — write the chapter prose. End with `## Misconception` section.
+- [ ] **`content/interview/{slug}.json`** — write 6 interview questions (2 per `junior`/`mid`/`senior`).
+- [ ] **`components/tools/{ToolName}Tool.tsx`** — implement the tool component. Apply `.tool-surface` class.
+- [ ] **`components/ui/ToolRenderer.tsx`** — add dynamic import entry in the `TOOLS` record.
+- [ ] **`lib/tool-meta/{act}.ts`** — add `ToolMeta` entry (summary, quickStart, help). Key must match `toolComponent`.
+- [ ] **`content/glossary.json`** — add any new terms introduced by the chapter.
+- [ ] **TypeScript check** — `npx tsc --noEmit`. Must produce no output.
+
+---
+
+## 18. Forking for a New Domain — Template Guide
+
+This section is a self-contained blueprint for building a new interactive educational app using the SecLayers architecture. Replace `YOUR_DOMAIN` with your subject area (e.g. "MLSystems", "DevOps", "TypeScript Internals").
+
+### Step 1 — Define your acts and color palette
+
+Open `lib/topics.ts` and replace the `TOPICS` array and all color maps. This drives everything else.
+
+```ts
+// lib/topics.ts — TEMPLATE
+export const TOPICS: Topic[] = [
+  // Act 0: Prologue / Mindset (optional)
+  { num: 0, act: 0, title: "Introduction",     slug: "intro",     actLabel: "Prologue",      toolComponent: "IntroTool",   tags: ["overview"] },
+
+  // Act 1: Foundations
+  { num: 1, act: 1, title: "Core Concept A",   slug: "concept-a", actLabel: "Foundations",   toolComponent: "ConceptATool", tags: ["basics"] },
+  { num: 2, act: 1, title: "Core Concept B",   slug: "concept-b", actLabel: "Foundations",   toolComponent: "ConceptBTool", tags: ["basics"] },
+
+  // Act 2: Advanced Topic Group
+  { num: 3, act: 2, title: "Advanced Topic 1", slug: "topic-1",   actLabel: "Act I — ...",   toolComponent: "Topic1Tool",   tags: ["advanced"] },
+  // ... add more
+] as const;
+
+// One CSS variable name per act (maps to --act-* in globals.css)
+export const ACT_COLORS: Record<number, string> = {
+  0: "intro",       // --act-intro
+  1: "foundations", // --act-foundations
+  2: "advanced",    // --act-advanced
+};
+
+// Tailwind classes — pick a distinct color per act
+export const ACT_TEXT:   Record<number, string> = { 0: "text-amber-400", 1: "text-slate-400", 2: "text-blue-400" };
+export const ACT_BG:     Record<number, string> = { 0: "bg-amber-900/30", 1: "bg-slate-900/30", 2: "bg-blue-900/30" };
+export const ACT_BORDER: Record<number, string> = { 0: "border-amber-500/40", 1: "border-slate-500/40", 2: "border-blue-500/40" };
+export const ACT_LABELS: Record<number, string> = { 0: "Prologue", 1: "Foundations", 2: "Act I — Advanced" };
+```
+
+### Step 2 — Add act CSS variables
+
+In `app/globals.css`, add a CSS variable for each act color you defined above:
+
+```css
+:root {
+  /* Replace or extend these with your act colors */
+  --act-intro:       #f59e0b;
+  --act-foundations: #94a3b8;
+  --act-advanced:    #60a5fa;
+  /* ... */
+}
+```
+
+### Step 3 — Write chapter MDX content
+
+For each entry in `TOPICS`, create `content/chapters/{slug}.mdx`. Every MDX file must:
+
+1. Start with an `# H1 Title` (it will be suppressed in rendering — the chapter header shows the title from `TOPICS`)
+2. Use `<Callout>`, `<DepthBlock>`, `<CodeBlock>` as needed
+3. End with a `## Misconception` section:
+
+```mdx
+# Your Chapter Title
+
+Opening paragraph explaining the topic.
+
+## Section One
+
+Content…
+
+<Callout kind="warning">
+  Common mistake to avoid.
+</Callout>
+
+<DepthBlock label="deep dive into X">
+  Advanced explanation only shown to advanced-mode learners.
+</DepthBlock>
+
+---
+
+## Misconception
+
+**Myth:** The common wrong belief about this topic.
+
+**Reality:** The correct explanation, supported by evidence.
+```
+
+### Step 4 — Write interview questions
+
+For each chapter, create `content/interview/{slug}.json`:
+
+```json
+[
+  {
+    "id": "concept-a-junior-01",
+    "question": "Explain X in simple terms.",
+    "answer": "X is... [multi-paragraph markdown answer]",
+    "category": "junior"
+  },
+  {
+    "id": "concept-a-junior-02",
+    "question": "What is the difference between X and Y?",
+    "answer": "The key difference is...",
+    "category": "junior"
+  },
+  {
+    "id": "concept-a-mid-01",
+    "question": "How does X affect Y in a production system?",
+    "answer": "In production...",
+    "category": "mid"
+  },
+  {
+    "id": "concept-a-mid-02",
+    "question": "Walk me through debugging X.",
+    "answer": "First, identify...",
+    "category": "mid"
+  },
+  {
+    "id": "concept-a-senior-01",
+    "question": "Design a system that handles X at scale.",
+    "answer": "At scale, the trade-offs are...",
+    "category": "senior"
+  },
+  {
+    "id": "concept-a-senior-02",
+    "question": "What are the failure modes of X?",
+    "answer": "The primary failure modes...",
+    "category": "senior"
+  }
+]
+```
+
+Convention: **6 questions per chapter, 2 per level.**
+
+### Step 5 — Build a tool component
+
+Create `components/tools/{ToolName}Tool.tsx`:
+
+```tsx
+"use client";
+
+import { useState } from "react";
+import { ToolShell } from "@/components/ui/ToolShell";
+
+export function ConceptATool() {
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState<string | null>(null);
+
+  function handleRun() {
+    // All logic runs client-side — no API calls needed
+    setResult(`Result for: ${input}`);
+  }
+
+  return (
+    <ToolShell title="Concept A Explorer" description="Experiment with Concept A interactively">
+      {/* Controls */}
+      <div className="flex gap-2 mb-4">
+        <input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Enter input…"
+          className="flex-1 px-3 py-2 rounded-lg text-sm border"
+        />
+        <button
+          onClick={handleRun}
+          className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
+        >
+          Run
+        </button>
+      </div>
+
+      {/* Output */}
+      {result && (
+        <div className="p-4 rounded-lg bg-success-subtle border border-success-subtle">
+          <p className="text-success text-sm font-mono">{result}</p>
+        </div>
+      )}
+    </ToolShell>
+  );
+}
+```
+
+Key rules:
+- Always wrap content in `<ToolShell>` or apply `className="tool-surface"` to the root element
+- Use semantic utility classes (`.bg-danger-subtle`, `.text-success`, etc.) for status colors
+- Never access `window` or `document` outside a `useEffect` or event handler
+
+### Step 6 — Register the tool
+
+**`components/ui/ToolRenderer.tsx`** — add one dynamic import:
+```ts
+ConceptATool: dynamic(() => import("@/components/tools/ConceptATool"), { ssr: false }),
+```
+
+**`lib/tool-meta/{act}.ts`** — add the metadata entry:
+```ts
+ConceptATool: {
+  summary: "One sentence: what this tool lets you do.",
+  quickStart: [
+    "First action to take in 30 seconds",
+    "Second thing to try",
+    "Third exploration step",
+  ],
+  help: {
+    goal: "One sentence: the skill or insight this tool teaches.",
+    steps: [
+      "Step 1 — do X",
+      "Step 2 — observe Y",
+      "Step 3 — toggle Z and compare",
+    ],
+    lookFor: "Optional: what pattern to notice and why it matters.",
+  },
+},
+```
+
+### Step 7 — Add glossary terms
+
+Add to `content/glossary.json`:
+```json
+{
+  "term": "Concept A",
+  "definition": "One to three sentences. What it is, why it matters, and the key implication.",
+  "relatedTopics": ["concept-a", "concept-b"],
+  "act": 1
+}
+```
+
+Good glossary entries answer: *what is it, why does it exist, what goes wrong without it?*
+
+### Step 8 — Verify
+
+```bash
+npx tsc --noEmit     # Must be clean
+npm run build        # Must build without errors
+```
+
+Manually check: chapter renders, tool page renders, interview questions appear in interview mode, misconception card appears, prev/next navigation works.
+
+---
+
+### Full architecture at a glance (template)
+
+```
+TOPICS array (lib/topics.ts)
+    │
+    ├── /[slug]           ← reads content/chapters/{slug}.mdx
+    │                        reads content/interview/{slug}.json
+    │
+    ├── /[slug]/tool      ← TOOL_META[topic.toolComponent]
+    │                        ToolRenderer → dynamic import
+    │
+    ├── /glossary         ← content/glossary.json (filtered by act)
+    ├── /labs/[slug]      ← lib/labs.ts + components/labs/
+    └── /exam             ← all interview JSONs, filtered by difficulty
+```
+
+Everything downstream derives from `TOPICS`. Add a chapter there first; everything else follows.
