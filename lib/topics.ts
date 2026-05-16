@@ -3,6 +3,9 @@ import type { Topic } from "@/types";
 export type { Topic };
 
 export const TOPICS: Topic[] = [
+  // ── Prologue (act 0) ──────────────────────────────────────
+  { num: 0,  act: 0, title: "The Attacker's Mindset",        slug: "attacker-mindset",    actLabel: "Prologue",                     toolComponent: "KillChainPlannerTool",  tags: ["kill-chain", "attacker-mindset", "recon"] },
+
   // ── Foundations (act 1) ──────────────────────────────────
   { num: 1,  act: 1, title: "Threat Modeling with STRIDE",   slug: "threat-modeling",     actLabel: "Foundations",                  toolComponent: "DfdBuilderTool",       tags: ["stride", "design"] },
   { num: 2,  act: 1, title: "Cryptography for Developers",   slug: "cryptography",        actLabel: "Foundations",                  toolComponent: "CryptoPlaygroundTool",  tags: ["crypto", "hashing", "aead"] },
@@ -41,25 +44,27 @@ export const TOPICS: Topic[] = [
   { num: 27, act: 5, title: "Use-After-Free & Heap",         slug: "heap",                actLabel: "Act IV — Systems",             toolComponent: "HeapVisualizerTool",      tags: ["binary", "heap"] },
   { num: 28, act: 5, title: "Mitigations (ASLR, NX, Canaries)",slug: "mitigations",       actLabel: "Act IV — Systems",             toolComponent: "MitigationToggleTool",    tags: ["binary", "defense"] },
   { num: 29, act: 5, title: "Race Conditions & TOCTOU",      slug: "race-conditions",     actLabel: "Act IV — Systems",             toolComponent: "ThreadTimelineTool",      tags: ["binary", "concurrency"] },
+  { num: 30, act: 5, title: "Static & Binary Analysis",      slug: "binary-analysis",     actLabel: "Act IV — Systems",             toolComponent: "CodeAuditWorkflowTool",   tags: ["binary", "static-analysis", "fuzzing"] },
 
   // ── Act V — Cloud & Infrastructure (act 6) ───────────────
-  { num: 30, act: 6, title: "IAM & Least Privilege",         slug: "iam",                 actLabel: "Act V — Cloud & Infrastructure", toolComponent: "IAMPolicySimulatorTool",  tags: ["cloud", "aws"] },
-  { num: 31, act: 6, title: "Misconfigured Storage",         slug: "cloud-storage",       actLabel: "Act V — Cloud & Infrastructure", toolComponent: "BucketACLTool",            tags: ["cloud", "s3"] },
-  { num: 32, act: 6, title: "Container Security",            slug: "containers",          actLabel: "Act V — Cloud & Infrastructure", toolComponent: "DockerfileLinterTool",    tags: ["cloud", "docker"] },
-  { num: 33, act: 6, title: "Kubernetes RBAC",               slug: "k8s-rbac",            actLabel: "Act V — Cloud & Infrastructure", toolComponent: "K8sRBACBuilderTool",      tags: ["cloud", "kubernetes"] },
-  { num: 34, act: 6, title: "Secrets Management",            slug: "secrets",             actLabel: "Act V — Cloud & Infrastructure", toolComponent: "SecretSprawlTool",        tags: ["cloud", "secrets"] },
-  { num: 35, act: 6, title: "IaC Security",                  slug: "iac",                 actLabel: "Act V — Cloud & Infrastructure", toolComponent: "TerraformScannerTool",    tags: ["cloud", "terraform"] },
-  { num: 36, act: 6, title: "Logging, Monitoring & IR",      slug: "logging-monitoring",  actLabel: "Act V — Cloud & Infrastructure", toolComponent: "LogInjectorTool",         tags: ["cloud", "siem", "incident-response"] },
+  { num: 31, act: 6, title: "IAM & Least Privilege",         slug: "iam",                 actLabel: "Act V — Cloud & Infrastructure", toolComponent: "IAMPolicySimulatorTool",  tags: ["cloud", "aws"] },
+  { num: 32, act: 6, title: "Misconfigured Storage",         slug: "cloud-storage",       actLabel: "Act V — Cloud & Infrastructure", toolComponent: "BucketACLTool",            tags: ["cloud", "s3"] },
+  { num: 33, act: 6, title: "Container Security",            slug: "containers",          actLabel: "Act V — Cloud & Infrastructure", toolComponent: "DockerfileLinterTool",    tags: ["cloud", "docker"] },
+  { num: 34, act: 6, title: "Kubernetes RBAC",               slug: "k8s-rbac",            actLabel: "Act V — Cloud & Infrastructure", toolComponent: "K8sRBACBuilderTool",      tags: ["cloud", "kubernetes"] },
+  { num: 35, act: 6, title: "Secrets Management",            slug: "secrets",             actLabel: "Act V — Cloud & Infrastructure", toolComponent: "SecretSprawlTool",        tags: ["cloud", "secrets"] },
+  { num: 36, act: 6, title: "IaC Security",                  slug: "iac",                 actLabel: "Act V — Cloud & Infrastructure", toolComponent: "TerraformScannerTool",    tags: ["cloud", "terraform"] },
+  { num: 37, act: 6, title: "Logging, Monitoring & IR",      slug: "logging-monitoring",  actLabel: "Act V — Cloud & Infrastructure", toolComponent: "LogInjectorTool",         tags: ["cloud", "siem", "incident-response"] },
 
   // ── Act VI — Supply Chain (act 7) ────────────────────────
-  { num: 37, act: 7, title: "Dependency Confusion",          slug: "dep-confusion",       actLabel: "Act VI — Supply Chain",        toolComponent: "DepResolverTool",         tags: ["supply-chain", "typosquatting"] },
-  { num: 38, act: 7, title: "SCA & CVE Triage",              slug: "sca",                 actLabel: "Act VI — Supply Chain",        toolComponent: "SBOMExplorerTool",        tags: ["supply-chain", "cve"] },
-  { num: 39, act: 7, title: "CI/CD Pipeline Security",       slug: "cicd",                actLabel: "Act VI — Supply Chain",        toolComponent: "PipelineDAGTool",         tags: ["supply-chain", "ci-cd"] },
-  { num: 40, act: 7, title: "Code Signing & SLSA",           slug: "slsa",                actLabel: "Act VI — Supply Chain",        toolComponent: "ProvenanceChainTool",     tags: ["supply-chain", "slsa"] },
-  { num: 41, act: 7, title: "Security Testing & Tooling",    slug: "sec-tooling",         actLabel: "Act VI — Supply Chain",        toolComponent: "SASTRuleBuilderTool",     tags: ["tooling", "sast", "dast"] },
+  { num: 38, act: 7, title: "Dependency Confusion",          slug: "dep-confusion",       actLabel: "Act VI — Supply Chain",        toolComponent: "DepResolverTool",         tags: ["supply-chain", "typosquatting"] },
+  { num: 39, act: 7, title: "SCA & CVE Triage",              slug: "sca",                 actLabel: "Act VI — Supply Chain",        toolComponent: "SBOMExplorerTool",        tags: ["supply-chain", "cve"] },
+  { num: 40, act: 7, title: "CI/CD Pipeline Security",       slug: "cicd",                actLabel: "Act VI — Supply Chain",        toolComponent: "PipelineDAGTool",         tags: ["supply-chain", "ci-cd"] },
+  { num: 41, act: 7, title: "Code Signing & SLSA",           slug: "slsa",                actLabel: "Act VI — Supply Chain",        toolComponent: "ProvenanceChainTool",     tags: ["supply-chain", "slsa"] },
+  { num: 42, act: 7, title: "Security Testing & Tooling",    slug: "sec-tooling",         actLabel: "Act VI — Supply Chain",        toolComponent: "SASTRuleBuilderTool",     tags: ["tooling", "sast", "dast"] },
 ] as const;
 
 export const ACT_COLORS: Record<number, string> = {
+  0: "attacker",
   1: "foundations",
   2: "web",
   3: "api",
@@ -71,6 +76,7 @@ export const ACT_COLORS: Record<number, string> = {
 
 // Tailwind-class color maps by act — matches CSS var palette
 export const ACT_TEXT: Record<number, string> = {
+  0: "text-amber-400",
   1: "text-slate-400",
   2: "text-blue-400",
   3: "text-violet-400",
@@ -81,6 +87,7 @@ export const ACT_TEXT: Record<number, string> = {
 };
 
 export const ACT_BG: Record<number, string> = {
+  0: "bg-amber-900/30",
   1: "bg-slate-900/30",
   2: "bg-blue-900/30",
   3: "bg-violet-900/30",
@@ -91,6 +98,7 @@ export const ACT_BG: Record<number, string> = {
 };
 
 export const ACT_BORDER: Record<number, string> = {
+  0: "border-amber-500/40",
   1: "border-slate-500/40",
   2: "border-blue-500/40",
   3: "border-violet-500/40",
@@ -101,6 +109,7 @@ export const ACT_BORDER: Record<number, string> = {
 };
 
 export const ACT_LABELS: Record<number, string> = {
+  0: "Prologue",
   1: "Foundations",
   2: "Act I — Web Security",
   3: "Act II — API Security",

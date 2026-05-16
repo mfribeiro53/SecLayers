@@ -1,0 +1,38 @@
+[
+  {
+    "id": "am-junior-01",
+    "question": "What is the Lockheed Martin Cyber Kill Chain and why is it useful for defenders?",
+    "answer": "The Cyber Kill Chain is a 7-stage model of a targeted cyberattack: Reconnaissance, Weaponization, Delivery, Exploitation, Installation, Command & Control, and Actions on Objectives.\n\nIt is useful for defenders because every stage must succeed for the attack to reach its goal. This means defenders can stop the attack by breaking any single link — not just by trying to prevent the initial entry. It provides a framework for building layered defenses (detection, prevention, and response) across all stages rather than focusing only on the exploitation step.",
+    "category": "junior"
+  },
+  {
+    "id": "am-junior-02",
+    "question": "What is the difference between a vulnerability, an exploit, and a payload?",
+    "answer": "A vulnerability is a specific, exploitable flaw in a particular product or version — a trackable CVE. An exploit is code or technique that takes advantage of that vulnerability to produce an unintended outcome. A payload is the malicious content delivered by the exploit — the shell command, SQL statement, or script that achieves the attacker's objective.\n\nThe progression: weakness (design flaw) → vulnerability (instance in a product) → exploit (technique to trigger it) → payload (what it delivers).",
+    "category": "junior"
+  },
+  {
+    "id": "am-mid-01",
+    "question": "What are the main techniques security researchers use to discover vulnerabilities in software?",
+    "answer": "1. Source code auditing — trace data flows from untrusted inputs to dangerous sinks (SQL queries, shell commands, HTML output). Finds logic flaws and injection points that automated tools miss.\n2. Fuzzing — send malformed or mutated inputs and watch for crashes. Coverage-guided fuzzers (AFL++, libFuzzer) are far more efficient than random fuzzing — they track code coverage and mutate inputs that reach new paths.\n3. Reverse engineering — for closed-source software, disassemble or decompile binaries (Ghidra, IDA Pro), then use dynamic analysis (Frida, GDB) to observe runtime behavior.\n4. Differential analysis — compare patched and unpatched versions to identify which functions changed, revealing the location of a silently fixed vulnerability.",
+    "category": "mid"
+  },
+  {
+    "id": "am-mid-02",
+    "question": "What is responsible disclosure? What are the main models, and why does it matter?",
+    "answer": "Responsible disclosure is the process of reporting a discovered vulnerability in a way that minimizes harm to users.\n\nThe main models:\n1. Coordinated Vulnerability Disclosure (CVD) — researcher reports privately to the vendor. Vendor patches within an agreed embargo (typically 90 days). Researcher publishes after the fix is available. Users are protected during the window.\n2. Bug Bounty — researcher reports via a platform (HackerOne, Bugcrowd) and receives payment. Similar to CVD but with financial incentives aligned toward disclosure.\n3. Full Disclosure — immediate public release, sometimes without notifying the vendor. Controversial because attackers and defenders learn simultaneously.\n\nIt matters because unauthorized testing is illegal (CFAA, CMA) regardless of intent. Disclosure also shapes whether a vulnerability becomes a defended CVE or a silent attacker advantage.",
+    "category": "mid"
+  },
+  {
+    "id": "am-senior-01",
+    "question": "How does an attacker approach planning a targeted attack against an organization, and what does this imply for defenders?",
+    "answer": "A targeted attacker starts with reconnaissance — mapping the attack surface: subdomains, employee roles, tech stack, credential leaks from past breaches, open GitHub repositories. They then select the attack vector with the best cost-to-impact ratio: a known CVE in an unpatched component, a phishing target with privileged access, an exposed admin interface.\n\nKey principles attackers exploit:\n- Complexity creates blind spots — more systems means more unmonitored trust boundaries\n- Defenders must secure everything; attackers only need one gap\n- Many defenses focus on exploitation but ignore reconnaissance, delivery, and post-exploitation\n\nImplication for defenders: match defenses to every kill chain stage, not just exploitation. Monitor for scanning (reconnaissance), restrict what is exposed (reduce attack surface), log authentication and unusual API calls (detect delivery/exploitation), and segment networks (limit post-exploitation lateral movement).",
+    "category": "senior"
+  },
+  {
+    "id": "am-senior-02",
+    "question": "How does the MITRE ATT&CK framework extend the kill chain, and how do defenders operationalize it?",
+    "answer": "The kill chain provides 7 high-level stages. MITRE ATT&CK provides a detailed taxonomy of 14 tactics and hundreds of specific techniques observed in real-world intrusions, mapped to documented threat actor groups.\n\nATT&CK extends the kill chain in three ways:\n1. Granularity — rather than 'Exploitation,' ATT&CK describes dozens of specific exploitation techniques (T1190 Exploit Public-Facing Application, T1059.001 PowerShell, etc.) with real-world examples\n2. Coverage — ATT&CK covers post-exploitation in depth (defense evasion, credential access, lateral movement) that the kill chain treats as a single 'Actions on Objectives' step\n3. Threat actor mapping — specific APT groups and their preferred techniques are documented, enabling threat-actor-specific detection\n\nDefenders operationalize ATT&CK by: mapping their existing detections to ATT&CK techniques to find coverage gaps, writing SIEM rules and EDR alerts keyed to specific technique indicators, and using ATT&CK Navigator to visualize which attacker behaviors they can and cannot detect.",
+    "category": "senior"
+  }
+]

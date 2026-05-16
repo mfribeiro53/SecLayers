@@ -1,5 +1,6 @@
 export type { ToolHelp, ToolMeta } from "./types";
 
+import { prologueMeta } from "./prologue";
 import { foundationsMeta } from "./foundations";
 import { webMeta } from "./web";
 import { apiMeta } from "./api";
@@ -10,6 +11,7 @@ import { supplyChainMeta } from "./supply-chain";
 import type { ToolMeta } from "./types";
 
 export const TOOL_META: Record<string, ToolMeta> = {
+  ...prologueMeta,
   ...foundationsMeta,
   ...webMeta,
   ...apiMeta,

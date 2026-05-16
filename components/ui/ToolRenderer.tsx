@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 
 // ── Dynamic tool imports (ssr: false prevents WASM/canvas hydration errors) ──
 const TOOLS: Record<string, React.ComponentType> = {
+  // Prologue
+  KillChainPlannerTool: dynamic(() => import("@/components/tools/KillChainPlannerTool"), { ssr: false }),
   // Foundations
   DfdBuilderTool: dynamic(() => import("@/components/tools/DfdBuilderTool"), { ssr: false }),
   CryptoPlaygroundTool: dynamic(() => import("@/components/tools/CryptoPlaygroundTool"), { ssr: false }),
@@ -32,6 +34,7 @@ const TOOLS: Record<string, React.ComponentType> = {
   AuthBypassTreeTool: dynamic(() => import("@/components/tools/AuthBypassTreeTool"), { ssr: false }),
   IntentRouterTool: dynamic(() => import("@/components/tools/IntentRouterTool"), { ssr: false }),
   // Act IV — Systems / Native
+  CodeAuditWorkflowTool: dynamic(() => import("@/components/tools/CodeAuditWorkflowTool"), { ssr: false }),
   StackFrameTool: dynamic(() => import("@/components/tools/StackFrameTool"), { ssr: false }),
   OverflowAnimatorTool: dynamic(() => import("@/components/tools/OverflowAnimatorTool"), { ssr: false }),
   PrintfSimulatorTool: dynamic(() => import("@/components/tools/PrintfSimulatorTool"), { ssr: false }),

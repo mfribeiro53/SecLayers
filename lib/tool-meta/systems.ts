@@ -93,6 +93,26 @@ export const systemsMeta: Record<string, ToolMeta> = {
       lookFor: "No single mitigation is sufficient. A real exploit chains: an info-leak to defeat ASLR, a write primitive to overwrite a return address or function pointer, and return-oriented programming gadgets to bypass NX. The full mitigation stack requires all four techniques to be combined simultaneously.",
     },
   },
+  CodeAuditWorkflowTool: {
+    summary: "Select a vulnerable target (C, Python, or Node.js), run tools from each category (SAST, binary analysis, dynamic, fuzzing), and see a coverage matrix showing what each tool found — and missed.",
+    quickStart: [
+      "Pick one of the three target programs",
+      "Click tools from different categories to run them and read their output",
+      "Run at least 3 tools, then click 'View Coverage Report'",
+      "Study the coverage matrix — notice that no single tool finds everything",
+    ],
+    help: {
+      goal: "Why a real security audit combines static analysis, binary analysis, dynamic instrumentation, and fuzzing — each technique has blind spots that the others cover.",
+      steps: [
+        "Select the C target first — it has the full range of applicable tools including binary analysis and fuzzing",
+        "Run Semgrep and note what it finds; then run checksec to see the missing protections",
+        "Run AFL++ and ASan to see how dynamic tools confirm the same bug with concrete crash evidence",
+        "Switch to the Python or Node.js target and run checksec — observe it reports 'not applicable'",
+        "Compare coverage matrices across targets to understand why tool selection depends on the technology stack",
+      ],
+      lookFor: "A tool that finds 0 aspects is not broken — it may simply not be applicable to this target. The Python target exposes that binary analysis tools don't apply to interpreted languages. The coverage matrix shows the complementary nature of all four categories: static analysis finds the code pattern; dynamic tools confirm it's exploitable; fuzzing finds it without knowing where to look.",
+    },
+  },
   ThreadTimelineTool: {
     summary: "Run two threads concurrently on a shared variable and trigger a TOCTOU race condition. Add a mutex and watch the data race disappear from the timeline.",
     quickStart: [

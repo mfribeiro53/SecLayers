@@ -1,0 +1,258 @@
+# Static & Binary Analysis
+
+Finding vulnerabilities before attackers do requires the same tools they use. Whether you have source code or only a compiled binary, a systematic combination of static analysis, dynamic instrumentation, and fuzzing will surface most serious issues — each technique blind to what the others see best.
+
+<Callout kind="insight">
+**The attacker already has this toolchain.** Ghidra, AFL++, GDB, and Semgrep are all free. A professional analyst spends months on a single target; a bug bounty hunter might spend weeks. You are not competing on access to tools — you are competing on methodology, depth, and time investment.
+</Callout>
+
+---
+
+## The Analyst's Toolkit
+
+| Category | Example Tools | Needs Source? | Speed | Best For |
+|---|---|---|---|---|
+| Static Source (SAST) | Semgrep, CodeQL, Bandit, gosec | Yes | Fast | CI/CD gate, known patterns |
+| Binary Static | Ghidra, IDA Pro, Radare2 | No | Medium | Proprietary software, firmware |
+| Dynamic / Runtime | GDB, strace, ASan, Valgrind | No (debug info helps) | Slow | Confirming exploitability |
+| Fuzzing | AFL++, libFuzzer, Honggfuzz | No (source helps) | Very slow | Unknown crash paths |
+
+No single category finds everything. A real audit combines all four.
+
+---
+
+## Static Source Code Analysis
+
+Static analysis examines code without executing it. Modern SAST tools work at the abstract syntax tree (AST) or intermediate representation (IR) level — they model the program's structure, data types, and control flow to find dangerous patterns.
+
+### How SAST Tools Work
+
+Three core techniques power modern static analysis:
+
+**Pattern matching** (Semgrep) — match syntactic patterns: "find any call to `gets()` in a C file", "find any f-string interpolated into `db.execute()`". Fast, with low false-negative rates for known-bad patterns, but cannot track data across function boundaries by default.
+
+**Taint analysis** (CodeQL, Checkmarx) — mark untrusted sources (HTTP parameters, file contents, environment variables) as "tainted." Follow that taint through assignments, function calls, and returns until it reaches a "sink" (SQL query, `exec()` call, HTML output). Any path from source to sink without sanitization is a finding.
+
+**Type-state analysis** (Clang Static Analyzer) — track object lifecycle (allocated → initialized → freed) to find use-after-free, double-free, and resource leaks.
+
+### Key Tools
+
+| Tool | Language(s) | Approach | License |
+|---|---|---|---|
+| Semgrep | 30+ languages | Pattern + metavariable rules | OSS (community rules free) |
+| CodeQL | 10+ languages | Taint analysis via Datalog queries | Free for OSS |
+| Bandit | Python | AST pattern matching | Apache 2.0 |
+| gosec | Go | AST rules for Go-specific risks | Apache 2.0 |
+| njsscan | Node.js | Pattern + DAST-style rules | LGPL-2.1 |
+| Brakeman | Ruby on Rails | Framework-aware taint analysis | MIT |
+
+### Reading a SAST Finding
+
+A useful finding tells you:
+
+1. **Severity** — ERROR, WARNING, or INFO (be skeptical of INFO-only findings)
+2. **Rule ID** — maps to a CWE or OWASP category
+3. **Source** — where untrusted data enters (e.g., `request.args.get()`)
+4. **Sink** — where it is used dangerously (e.g., `db.execute()`)
+5. **Dataflow path** — the chain of assignments between source and sink
+
+A finding without a dataflow path is harder to validate and may be a false positive.
+
+<Callout kind="warning">
+**False positive rates vary wildly.** Pattern-only tools can produce 30–60% false positives on enterprise codebases. Taint-aware tools (CodeQL) are more precise but slower. Always triage findings by severity and reachability before acting on them — blocking every PR on an INFO finding trains developers to suppress warnings globally.
+</Callout>
+
+---
+
+## Binary Static Analysis
+
+When you have a compiled binary and no source code — a closed-source library, firmware, a suspicious executable — binary static analysis reconstructs the program's logic from machine code.
+
+### What You Have Without Source
+
+| Artifact | Command | What It Reveals |
+|---|---|---|
+| File type & arch | `file ./binary` | ELF/PE, 32/64-bit, stripped? |
+| Section layout | `readelf -S ./binary` | Code, data, BSS, GOT, PLT locations |
+| Imported symbols | `nm -D ./binary` | Library calls including dangerous functions |
+| String table | `strings -a ./binary` | Hardcoded credentials, paths, error messages |
+| Protections | `checksec --file=./binary` | NX, PIE, RELRO, stack canary, FORTIFY |
+| Disassembly | `objdump -d ./binary` | Exact instruction sequence |
+
+### Disassembly vs Decompilation
+
+**Disassembly** converts raw bytes back to assembly instructions — exact byte-level fidelity, but you must read assembly code.
+
+**Decompilation** reconstructs high-level C-like pseudocode from the control flow graph. Ghidra's decompiler and IDA Pro's Hex-Rays produce readable code that isn't literally in the binary — it's a best-guess reconstruction. Variable names are lost (unless DWARF debug symbols survive), but the logic is usually correct for common patterns.
+
+### The Binary Analysis Toolkit
+
+| Tool | Cost | Strengths |
+|---|---|---|
+| Ghidra | Free (NSA) | Full decompiler, Python/Java scripting, great first look |
+| IDA Pro + Hex-Rays | ~$4k | Industry standard, best decompiler output, large plugin ecosystem |
+| Binary Ninja | ~$500/yr | Modern UI, IL-based analysis, excellent Python API |
+| Radare2 / Cutter | Free | CLI-first, scriptable, good for automation and CTFs |
+
+### First 5 Minutes with an Unknown Binary
+
+```bash
+file ./target                   # architecture, ELF/PE, stripped?
+strings -a ./target | less      # credentials, error messages, paths
+checksec --file=./target        # what protections are compiled in?
+nm -D ./target | grep -i "gets\|strcpy\|system\|exec"  # dangerous imports
+objdump -d ./target | grep -A10 "<main>"  # entry point
+```
+
+In Ghidra: **File → Import → Auto-analyze → open `main` in the decompiler view**. Look for calls to dangerous functions, loops reading from untrusted input, and pointer arithmetic without bounds checks. The Symbol Tree panel lists every function — search for `gets`, `strcpy`, `system`, and similar.
+
+---
+
+## Dynamic Analysis & Instrumentation
+
+Dynamic analysis runs the program and observes its behavior at runtime. It finds bugs invisible to static tools: timing-dependent issues, bugs in generated code, and vulnerabilities that only appear with specific runtime state.
+
+### Debuggers
+
+**GDB** (GNU Debugger) is the standard Linux debugger. Three plugins transform its minimal default UI into a powerful analysis environment:
+
+- **pwndbg** — adds a context view showing registers, stack, code, and backtrace on every break. Essential for exploit development.
+- **peda** — similar to pwndbg, adds `checksec`, `pattern create/offset` for calculating return address offsets.
+- **GEF** — another modern plugin with integrated heap visualization.
+
+Key GDB workflow for vulnerability analysis:
+
+```gdb
+(gdb) run < malicious_input     # crash the program
+(gdb) bt                        # backtrace to find the crash site
+(gdb) info registers            # inspect register state at crash
+(gdb) x/20x $rsp                # examine stack memory
+(gdb) pattern create 200        # De Bruijn pattern (pwndbg/peda)
+(gdb) run < pattern.txt         # find exact offset to return address
+```
+
+### System Call and Library Tracing
+
+**strace** traces every syscall a process makes — invaluable for understanding file access, network calls, and privilege changes without source code:
+
+```bash
+strace -e trace=open,read,write,execve ./binary 2>&1 | less
+```
+
+**ltrace** traces dynamic library calls:
+
+```bash
+ltrace -e strcmp,strcpy,gets ./binary   # spot string comparison bypasses
+```
+
+### Memory Error Detectors
+
+**AddressSanitizer (ASan)** is a compile-time instrumentation pass that shadows every memory access. Add it during the build step:
+
+```bash
+clang -fsanitize=address,undefined -O1 -g target.c -o target_asan
+./target_asan < crashing_input
+```
+
+ASan overhead: ~2× slowdown, ~3× memory increase. Detects: stack/heap/global buffer overflows, use-after-free, use-after-return, double-free. UBSan (pass `-fsanitize=undefined`) adds integer overflow and null pointer dereference detection.
+
+**Valgrind / Memcheck** needs no recompilation — run the existing binary directly:
+
+```bash
+valgrind --leak-check=full ./binary < input
+```
+
+Slower than ASan (~20× slowdown) but works on pre-compiled binaries with no source. Catches heap errors; does not catch stack overflows.
+
+| Tool | Recompile? | Overhead | Stack overflow | Heap errors | UAF |
+|---|---|---|---|---|---|
+| ASan | Yes | ~2× | ✓ | ✓ | ✓ |
+| Valgrind | No | ~20× | ✗ | ✓ | ✓ |
+| UBSan | Yes | ~1.1× | ✗ | ✗ | ✗ |
+
+---
+
+## Fuzzing
+
+Fuzzing sends large volumes of malformed input to a target and monitors for crashes, assertion failures, or timeouts. It finds bugs that no human would think to test and that static analysis misses because the vulnerable path requires specific runtime state.
+
+### Coverage-Guided Fuzzing
+
+A **dumb fuzzer** mutates inputs randomly — inefficient. A **coverage-guided fuzzer** instruments the binary to track which branches each input exercises. When a mutated input reaches a new branch, it is added to the corpus. Inputs that cover no new code are deprioritized.
+
+```
+Seed corpus → Mutate → Run target → New branch? → Add to corpus → Repeat
+                            ↓
+                       Crash found → Save to crashes/
+```
+
+This feedback loop lets the fuzzer efficiently explore the program's state space rather than randomly probing the input space.
+
+### Fuzzer Comparison
+
+| Fuzzer | Instrumentation | Best For |
+|---|---|---|
+| AFL++ | Compiler (LLVM) | Binaries with source, broad coverage |
+| libFuzzer | LLVM sanitizer | In-process unit fuzz targets, tight integration |
+| Honggfuzz | Compiler + hardware perf counters | High throughput on Linux |
+| Atheris | CPython hooks | Fuzzing Python code and C extensions |
+
+### From Crash to Bug
+
+Finding a crash is not the end — it is the beginning of triage:
+
+1. **Minimize the input** — `afl-tmin` reduces the crashing input to its smallest reproducible form
+2. **Reproduce under ASan** — run the minimized input with a sanitizer-enabled build to get a clean report with line numbers
+3. **Classify** — null dereference, stack overflow, heap overflow, use-after-free: each class has different exploitability
+4. **Determine control** — does the attacker control the value that overwrites the return address? Is there a path to arbitrary write?
+
+---
+
+## The Analysis Workflow
+
+A practical audit combines all four techniques in sequence:
+
+| Step | Activity | Goal |
+|---|---|---|
+| 1. Recon | `file`, `strings`, `checksec`, `readelf` | Understand attack surface and protections |
+| 2. Static | SAST (Semgrep/CodeQL) or binary analysis (Ghidra) | Find dangerous patterns and data flows |
+| 3. Dynamic | GDB, strace, ASan-instrumented build | Confirm reachability and runtime behavior |
+| 4. Fuzz | AFL++ or libFuzzer on identified input surfaces | Discover unknown crash paths |
+| 5. Triage | `afl-tmin` + ASan reproduction + exploitability | Reproduce reliably and classify severity |
+
+Each step narrows the search space for the next. Static finds candidates; dynamic confirms them; fuzzing finds what both missed.
+
+---
+
+## For Defenders: SAST in CI/CD
+
+SAST is most valuable when it runs automatically on every pull request. Key practices:
+
+**Baseline the noise first.** Run SAST on your existing codebase and suppress all current findings. Alert only on findings introduced by the current diff — otherwise teams drown in pre-existing issues and stop reading alerts entirely.
+
+**Prioritize by reachability.** A SQL injection in dead code is not the same risk as one reachable from a public HTTP handler. Tools like Semgrep Pro and Snyk Code track whether a vulnerable function is reachable from an entry point.
+
+**Fail builds on HIGH/CRITICAL only.** Blocking every PR on INFO findings trains developers to suppress warnings globally. Alert on confirmed exploitable patterns and warn on everything else.
+
+**Pair with SCA.** SAST finds bugs in your own code; Software Composition Analysis (Chapter 39) finds known CVEs in your dependencies. Neither covers the other's blind spots.
+
+---
+
+## Summary
+
+| Technique | Finds Well | Misses | Speed |
+|---|---|---|---|
+| SAST (pattern matching) | Known-bad functions, obvious injection patterns | Cross-function data flow, runtime state | Seconds |
+| SAST (taint/dataflow) | Multi-step injection paths, auth bypasses | Dynamically generated code, reflection | Minutes |
+| Binary static | Dangerous imports, hardcoded secrets, control flow | Runtime-only bugs, obfuscated logic | Minutes–hours |
+| Dynamic / debugger | Exact crash state, register values, memory layout | Requires triggering the bug manually | Minutes |
+| ASan / Valgrind | Memory errors on instrumented runs | Bugs on paths not exercised by test input | Slow |
+| Coverage-guided fuzzing | Unknown crash paths, edge cases, parser bugs | Logic bugs without crashes, auth flows | Hours–days |
+
+---
+
+## Misconception
+
+> "Our SAST tool scans every commit — we catch all vulnerabilities before they ship."
+
+**Reality:** Academic studies measure SAST recall (the fraction of real vulnerabilities a tool detects) at 10–40% depending on tool and vulnerability class. SAST excels at pattern-matched "known-bad" code (`gets()` calls, SQL concatenation) but struggles with complex multi-step flows, vulnerabilities introduced by library interactions, and logic bugs that produce no dangerous-function call. A SAST gate removes the easy bugs — leaving the harder ones for manual review, fuzzing, and dynamic testing. It is a necessary floor, not a ceiling.
