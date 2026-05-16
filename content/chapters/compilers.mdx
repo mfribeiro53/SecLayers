@@ -1,0 +1,334 @@
+# Compilers, Assemblers & Runtime Engines
+
+The compiler toolchain is the most trusted piece of software in a developer's workflow. Source code goes in, machine code comes out, and most engineers never think about what happens in between. That trust is mostly warranted — but the pipeline is also where security properties are added, silently removed, or fundamentally complicated by execution models that the C abstract machine was never designed for.
+
+<Callout kind="info">
+**This chapter complements, not repeats, the Mitigations chapter.** Stack canaries, PIE, RELRO, and CFI are introduced there from an exploitation perspective. Here the focus is on how the compiler toolchain *produces* those properties, and where the toolchain itself becomes a security surface.
+</Callout>
+
+---
+
+## The Compilation Pipeline
+
+Understanding where each security property enters (or exits) the pipeline helps you know which flag actually does what.
+
+```
+Source (.c / .cpp)
+    │
+    ▼ Preprocessor (cpp)
+    │  Macro expansion, #include resolution, conditional compilation
+    │
+    ▼ Front-end / Parser
+    │  Produces Abstract Syntax Tree (AST)
+    │  Type checking, diagnostics
+    │
+    ▼ IR Generation (LLVM IR / GCC GIMPLE)
+    │  Language-agnostic intermediate representation
+    │  Most sanitizers are injected here
+    │
+    ▼ Optimizer (O0 / O1 / O2 / O3)
+    │  Dead code elimination, inlining, loop unrolling
+    │  ← security-critical code can be removed here
+    │
+    ▼ Code Generator
+    │  IR → target assembly
+    │  CFI labels (ENDBR), canary insertion, PIE relocations
+    │
+    ▼ Assembler (as)
+    │  Assembly → object file (.o)
+    │  Relocatable machine code + relocation records
+    │
+    ▼ Linker (ld / lld)
+    │  Combines object files + libraries
+    │  Resolves relocations, writes ELF/PE/Mach-O
+    │  RELRO, section ordering applied here
+    │
+    ▼ Binary (.elf / .exe / .dylib)
+```
+
+Each arrow is a transformation. Bugs and mitigations live at specific stages — not in "the compiler" as a monolith.
+
+---
+
+## Compiler Security Features
+
+### Sanitizers (Instrumentation at IR Stage)
+
+Sanitizers inject checks into the IR before code generation. They are debug/test tools — too slow for production — but they catch entire classes of bugs that are otherwise silent.
+
+| Sanitizer | Flag | Detects | Overhead |
+|---|---|---|---|
+| AddressSanitizer | `-fsanitize=address` | Heap/stack buffer overflow, UAF, double-free | ~2× |
+| MemorySanitizer | `-fsanitize=memory` | Reads from uninitialised memory | ~3× |
+| ThreadSanitizer | `-fsanitize=thread` | Data races | ~5–15× |
+| UndefinedBehaviorSanitizer | `-fsanitize=undefined` | Integer overflow, null deref, misaligned access | ~1.2× |
+| LeakSanitizer | `-fsanitize=leak` | Memory leaks at exit | Low |
+
+Run your test suite with `-fsanitize=address,undefined` as a baseline. A crash under ASan that doesn't crash normally is a latent memory corruption bug.
+
+<Callout kind="warning">
+**Sanitizers are not fuzzers.** They detect bugs only on paths your tests actually execute. A buffer overflow on an untested code path is invisible. Pair sanitizers with coverage-guided fuzzing (AFL++, libFuzzer) so the fuzzer finds paths and sanitizers detect the bugs on those paths.
+</Callout>
+
+### Security Flags and What They Emit
+
+```bash
+gcc -O2                          \
+    -fPIE -pie                   \  # PIE: relocatable text, enables ASLR on binary
+    -fstack-protector-strong     \  # Stack canary on functions with buffers/alloca
+    -D_FORTIFY_SOURCE=2          \  # Fortified libc wrappers (bounds-checked memcpy etc.)
+    -Wl,-z,relro,-z,now          \  # Full RELRO: resolve all PLT at load, then mark GOT RO
+    -fcf-protection=full         \  # Intel CET: IBT (ENDBR) + shadow stack
+    -fsanitize=cfi               \  # Clang CFI: forward-edge virtual call validation
+    -o program program.c
+```
+
+These flags are additive — disabling any one reopens a specific attack class. Full RELRO without PIE still leaves the binary's own text at a fixed address; PIE without RELRO still leaves the GOT writable.
+
+### _FORTIFY_SOURCE in Detail
+
+`_FORTIFY_SOURCE=2` replaces calls to `memcpy`, `strcpy`, `sprintf`, and similar functions with compiler-instrumented versions that check the destination buffer size when it can be determined at compile time. If the size is unknown at compile time, it falls back to a runtime check.
+
+```c
+char buf[16];
+memcpy(buf, src, n);  // with FORTIFY: checked against sizeof(buf) = 16
+```
+
+It catches the easy cases but misses anything where the buffer size is a runtime variable the compiler cannot prove. It is not a substitute for correct code.
+
+---
+
+## The Optimizer as a Security Hazard
+
+This is the most counterintuitive issue in compiler security: **the optimizer can silently remove code that is correct but appears "dead" from the abstract machine's perspective.**
+
+### The memset Elision Problem
+
+```c
+void clear_key(struct session *s) {
+    memset(s->key, 0, sizeof(s->key));  // clear secret key
+    free(s);
+}
+```
+
+At `-O2`, the compiler sees that `s->key` is never read after `memset` — the struct is about to be freed. From the abstract machine's perspective, the `memset` has no observable effect. The compiler is *permitted* — and in practice *will* — eliminate it as a dead store.
+
+The key bytes remain in memory until overwritten by a future allocation. Any subsequent read of that freed region (via a UAF, heap info-leak, or core dump) recovers the secret.
+
+**Fix**: Use explicitly non-elision-safe clearing functions:
+
+```c
+// C11 — mandated not to be optimised out
+memset_s(s->key, sizeof(s->key), 0, sizeof(s->key));
+
+// OpenSSL / portable
+OPENSSL_cleanse(s->key, sizeof(s->key));
+
+// Compiler barrier approach (GCC/Clang)
+memset(s->key, 0, sizeof(s->key));
+__asm__ __volatile__("" ::: "memory");  // prevent reordering/elimination
+```
+
+### `volatile` — Misunderstood and Insufficient
+
+`volatile` tells the compiler the memory may change by external means — it prevents caching in a register. Many codebases use `volatile` to prevent memset elision:
+
+```c
+volatile char *p = s->key;
+while (size--) *p++ = 0;
+```
+
+This works for now but is not formally guaranteed. The C standard's observable behaviour definition doesn't classify writing a volatile as inherently observable in the security sense. Some compilers have honoured this; some future optimisation pass might not. `memset_s` is the only standards-backed guarantee.
+
+### Integer Overflow and Signed Arithmetic
+
+UBSan exists because signed integer overflow is **undefined behaviour** in C and C++. The optimizer exploits this:
+
+```c
+// The compiler may assume this condition is never true (signed overflow is UB),
+// and eliminate the null-terminator check entirely.
+if (len + 1 < len) return ERROR;
+```
+
+Real CVEs have resulted from overflow-check elimination under `-O2`. Use `-fsanitize=undefined` in tests and compile with `-fwrapv` if you need defined signed wraparound semantics.
+
+---
+
+## Assemblers and Inline Assembly
+
+The assembler translates human-readable mnemonics to machine code and resolves labels into addresses. As a security surface it is mostly trusted — bugs in assemblers themselves are rare — but two areas deserve attention.
+
+### Inline Assembly Risks
+
+Inline assembly (`__asm__` in GCC/Clang) bypasses type checking, calling conventions, and sanitizer instrumentation entirely:
+
+```c
+__asm__ volatile (
+    "movq %0, %%rax\n\t"
+    "call *%%rax"
+    :
+    : "r"(fn_ptr)
+    : "rax"
+);
+```
+
+- Sanitizers do not instrument inline asm blocks. ASan will not detect a buffer overflow inside inline asm.
+- CFI instrumentation is not applied to indirect calls in inline asm. An indirect call in asm bypasses IBT enforcement.
+- Incorrect clobber lists corrupt registers silently.
+
+Inline asm is sometimes necessary (SIMD, system calls, crypto primitives) but should be isolated, audited separately, and tested with inputs that trigger boundary conditions.
+
+### Spectre and Meltdown: Microarchitecture Below the Assembler
+
+Spectre and Meltdown are not bugs in the C source or the assembler output — they are bugs in the CPU's speculative execution microarchitecture. The executed instruction sequence is correct; the CPU's internal optimisations leak information through side channels.
+
+**Meltdown (CVE-2017-5754)**: The CPU speculatively executes instructions across a privilege boundary before the permission check completes. A user-space process could speculatively read kernel memory into a cache line, then measure cache access time to recover the value — even though the instruction that performed the read raised a fault and its result was never architecturally committed.
+
+**Spectre (CVE-2017-5753, CVE-2017-5715)**: Trains the CPU's branch predictor to speculate into attacker-chosen code paths. During speculation, array accesses with attacker-controlled indices access memory the program would never reach in non-speculative execution — encoding that data in the cache as a side channel.
+
+Both required mitigations at every layer: OS (KPTI, kernel page-table isolation), CPU microcode updates, and compiler-level serialising barriers (`lfence`, retpoline for indirect calls). This is the only case where the compiler itself emits different code (`-mindirect-branch=thunk` for retpoline) to counteract a hardware vulnerability.
+
+---
+
+## Disassemblers: Reading Binaries Without Source
+
+A disassembler reconstructs assembly from machine code. This is inherently lossy — machine code does not encode intent, variable names, or type information.
+
+### Why Disassembly Is Hard
+
+**Variable-length instructions (x86)**: x86 instructions are 1–15 bytes. The disassembler must find the correct starting byte for each instruction. If it starts one byte off, the entire stream is misaligned and decoded as garbage. Obfuscated binaries deliberately embed bytes that are valid-but-wrong instructions to mislead disassemblers that follow incorrect paths.
+
+**Indirect control flow**: A function table dispatch (`call [rax + rdi*8]`) makes it impossible to statically determine all possible call targets without knowing the runtime value of `rax`. Recursive disassemblers stop here; linear disassemblers produce spurious output.
+
+**Stripped symbols**: With no symbol table, function boundaries must be inferred from prologue patterns (`push rbp; mov rbp, rsp`) or call targets — heuristics that fail in optimised code where prologues are inlined away.
+
+### The Three Tools
+
+| Tool | Type | Best For |
+|---|---|---|
+| `objdump -d` | Linear sweep | Quick inspection, CI scripts, automation |
+| Ghidra | Recursive + decompiler | Serious analysis, free, scriptable (Python/Java API) |
+| IDA Pro | Recursive + decompiler | Industry standard, best architecture support, expensive |
+
+Ghidra's decompiler produces C-like pseudocode from machine code. It is not source code — it is a best-effort reconstruction. Always verify decompiler output against the actual disassembly for security-critical findings. The decompiler can misread patterns; the assembly does not lie.
+
+**Workflow for finding vulnerabilities in a binary**:
+1. `checksec` — identify which mitigations are absent
+2. `strings -a` — find error messages that reveal parser logic, crypto usage, authentication strings
+3. Import into Ghidra; let auto-analysis complete
+4. Cross-reference dangerous functions: `gets`, `strcpy`, `sprintf`, `system`, `exec*`
+5. Follow data flow backward from the dangerous call to find the controllable input
+6. Confirm dynamically in GDB
+
+---
+
+## JIT Compilers and JIT Spraying
+
+Just-In-Time compilation translates bytecode or intermediate representation to native machine code at runtime. JavaScript engines (V8, SpiderMonkey), the JVM, .NET CLR, LuaJIT, and PyPy all use JIT compilation.
+
+### The W^X Tension
+
+NX requires that no page be simultaneously writable and executable. JIT compilation inherently violates this: the JIT must write machine code to a buffer and then execute it. The standard mitigation is a **JIT permission toggle**:
+
+1. Allocate a buffer with `mmap(PROT_READ | PROT_WRITE)` — writable, not executable
+2. Write machine code to the buffer
+3. Call `mprotect(PROT_READ | PROT_EXEC)` — executable, no longer writable
+4. Execute the code
+
+The window between steps 2 and 3 is a race condition: if an attacker can write to the buffer during this window (via a concurrently exploitable memory corruption bug), they can inject arbitrary machine code that will then be marked executable.
+
+### JIT Spraying
+
+JIT spraying is a heap-spray technique that exploits the JIT compiler's code generation to produce attacker-controlled machine code in executable pages — without requiring a write to executable memory.
+
+The attack works by crafting script code with large immediate constants whose byte sequences, when compiled to native code, contain embedded shellcode or ROP gadgets. Because the JIT-compiled region is executable, the attacker then corrupts a control flow pointer (return address, vtable, function pointer) to jump into the middle of a compiled instruction, where the embedded shellcode begins.
+
+```javascript
+// Conceptual — the immediate 0x90909090 appears verbatim in the compiled output
+var x = 0x90909090 ^ 0x90909090;  // compiles to: XOR eax, 0x90909090
+//                                 bytes in code: 35 90 90 90 90
+//                                 jumping to offset +1: NOP NOP NOP NOP ...
+```
+
+The mitigation is **constant blinding**: the JIT compiler XORs all large immediates with a random key before emitting them. The emitted code XORs back at runtime, producing the intended value — but the raw bytes in memory are randomised, preventing predictable byte sequences.
+
+### Browser Engine CVEs
+
+Browser JIT engines are one of the most heavily exploited attack surfaces in modern computing. Recurring patterns:
+
+| Bug Class | Example | Impact |
+|---|---|---|
+| Type confusion | CVE-2021-21224 (V8) | Treat a float64 array as a pointer array → arbitrary read/write |
+| Out-of-bounds JIT array access | CVE-2020-6418 (V8) | JIT eliminates a bounds check on a hot path; attacker controls index |
+| UAF in optimised code | CVE-2019-5786 (Chrome FileReader) | Object freed during GC; JIT holds stale reference |
+| Incorrect JIT speculation | CVE-2018-6056 (V8 Maglev) | JIT assumes type invariant that can be violated via prototype mutation |
+
+The common thread: the JIT compiler's optimisations make assumptions about program behaviour that are valid for normal code but can be violated by attacker-controlled JavaScript. When those assumptions are wrong, the JIT emits code that operates outside intended memory bounds.
+
+---
+
+## Interpreters and Sandbox Escapes
+
+An interpreter evaluates source code or bytecode directly. Python, Ruby, Lua, PHP, and JavaScript (in non-JIT engines) are all interpreted. The security issues are distinct from compiled languages.
+
+### eval() Injection
+
+`eval()` compiles and executes a string as code at runtime. If attacker-controlled data reaches `eval()`, the attacker executes arbitrary code in the interpreter's process context — equivalent to command injection but at the language level.
+
+```python
+# Vulnerable: user input in a math expression evaluator
+result = eval(request.args.get("expr"))
+# Input: __import__('os').system('id')  → arbitrary command execution
+```
+
+Safe alternatives: parse the expression with an AST (`ast.literal_eval` for literals), use a dedicated expression library, or validate and whitelist the input strictly before evaluation. `ast.literal_eval` only evaluates Python literals (strings, numbers, lists, dicts, tuples) — it does not execute arbitrary expressions.
+
+### Pickle Deserialization
+
+Python's `pickle` module serialises arbitrary Python objects, including callable objects with custom `__reduce__` methods. Deserialising attacker-controlled pickle data executes arbitrary Python code.
+
+```python
+import pickle, os
+
+class Exploit:
+    def __reduce__(self):
+        return (os.system, ('id',))
+
+payload = pickle.dumps(Exploit())  # serialise
+pickle.loads(payload)              # deserialise → runs os.system('id')
+```
+
+`pickle` is not a data format — it is a code execution format. Never deserialise pickle data from untrusted sources. Use `json`, `msgpack`, or `protobuf` for data exchange. If pickle is required internally, sign the payload and verify the signature before deserialising.
+
+### Lua Sandbox Escapes
+
+Lua is frequently embedded in applications as a scripting engine (game mods, nginx/OpenResty, Redis scripting). The standard approach is to load scripts in a restricted environment — strip dangerous functions from `_G` before running untrusted code:
+
+```lua
+local env = { math = math, string = string }
+-- os, io, dofile, load, require are absent
+local fn = load(user_script, "script", "t", env)
+fn()
+```
+
+Sandbox escapes exist because Lua's reflection capabilities (`debug` library, `string.format` with `%q`, coroutines) can expose references to the global environment or the `debug` table, even from a restricted environment. The `debug.getupvalue` / `debug.setupvalue` functions can modify closed-over variables in functions from the unrestricted environment, providing a path to `_G`. The only robust Lua sandbox is process-level isolation — run untrusted Lua in a separate process with no access to sensitive state.
+
+### Python Sandbox Escapes
+
+Python's object model makes sandboxing nearly impossible at the language level. From any Python code, you can typically reach `object.__subclasses__()` to enumerate all loaded classes, find `subprocess.Popen` or `os._Environ`, and escape any sandbox that did not restrict the built-in class hierarchy.
+
+```python
+# Classic escape from a restricted eval context
+().__class__.__bases__[0].__subclasses__()  # all subclasses of object
+# Find <class 'subprocess.Popen'> and instantiate it
+```
+
+The accepted position in the Python community: **there is no safe way to execute untrusted Python code in the same process as trusted code.** Use subprocess isolation with `seccomp` filtering, container isolation, or a purpose-built restricted language (Starlark, Jsonnet) for user-defined scripting.
+
+---
+
+## Misconception
+
+**Myth:** "The compiler produces exactly what I wrote — if my code is correct, the binary is correct."
+
+**Reality:** The compiler is an optimising transformation. Code that is correct by the C/C++ abstract machine model can produce a binary that violates security intent. `memset` on a soon-to-be-freed buffer is eliminated as a dead store. Overflow-checking code is removed because signed overflow is undefined behaviour and the optimizer assumes it cannot happen. Inline assembly bypasses sanitizer instrumentation, so buffer overflows inside asm blocks are silent. Security-critical code must be written with explicit knowledge of which transformations the optimizer is permitted to perform — and use language-specified mechanisms (`memset_s`, `__attribute__((noinline))`, volatile memory barriers) when those transformations would be harmful.
