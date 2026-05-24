@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-App runs at `http://localhost:3020/SecLayers`.
+App runs at `http://localhost:3020`.
 
 ### Run with Docker
 
@@ -20,7 +20,7 @@ docker build -t seclayers .
 docker run -p 3020:3000 seclayers
 ```
 
-App runs at `http://localhost:3020/SecLayers`.
+App runs at `http://localhost:3020`.
 
 To run in the background:
 

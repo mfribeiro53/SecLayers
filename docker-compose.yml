@@ -1,0 +1,14 @@
+services:
+  seclayers:
+    build: .
+    image: seclayers
+    container_name: seclayers-test
+    ports:
+      - "3020:3000"
+    networks:
+      - cloudflare-shared-net
+    restart: unless-stopped
+
+networks:
+  cloudflare-shared-net:
+    external: true

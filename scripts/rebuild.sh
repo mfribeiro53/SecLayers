@@ -4,7 +4,7 @@ set -euo pipefail
 LOG=/tmp/seclayers-rebuild.log
 DOCKER=/usr/local/bin/docker
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-IMAGE=seclayers
+COMPOSE_FILE="$PROJECT_DIR/docker-compose.yml"
 CONTAINER=seclayers-test
 PORT=3020
 
@@ -22,11 +22,9 @@ free_port() {
 }
 
 rebuild() {
-  "$DOCKER" stop "$CONTAINER" 2>/dev/null || true
-  "$DOCKER" rm "$CONTAINER" 2>/dev/null || true
+  "$DOCKER" compose -f "$COMPOSE_FILE" down --remove-orphans || true
   free_port "$PORT"
-  "$DOCKER" build -t "$IMAGE" "$PROJECT_DIR" || return 1
-  "$DOCKER" run -d -p "$PORT":3000 --name "$CONTAINER" "$IMAGE" || return 1
+  "$DOCKER" compose -f "$COMPOSE_FILE" up --build -d || return 1
   sleep 2
   "$DOCKER" inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null | grep -q '^true$' || return 1
 }
